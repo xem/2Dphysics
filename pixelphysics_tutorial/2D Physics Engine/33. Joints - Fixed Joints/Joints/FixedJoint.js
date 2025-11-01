@@ -16,6 +16,7 @@ class FixedJoint extends Joint{
 		this.rigiAFriction = this.rigiA.material.friction;
 		this.rigiBFriction = this.rigiB.material.friction;
 		
+		// Store the initial relative angle between both bodies
 		this.relativeOrientation = this.rigiB.shape.orientation - this.rigiA.shape.orientation;
 		
 		this.jointIterations = 20;
@@ -49,15 +50,28 @@ class FixedJoint extends Joint{
 				contact.depth = this.initialLength - distance;
 				contact.normal.Scale(-1);
 			}
+      
+			// Stronger correction — ensures almost no drift
 			contact.positionalCorrection();
 			contact.resolveCollision();		
 
 		
 		}	
 		
+		// Fix orientation *strongly*
 		let currentOrientationDiff = this.rigiB.shape.orientation - this.rigiA.shape.orientation - 0.01;
-		let fixedOrientationVel = (this.relativeOrientation - currentOrientationDiff);	
-		this.rigiB.angularVelocity += fixedOrientationVel * 0.5 * 0.1;		
+		let angleError = this.relativeOrientation - currentOrientationDiff;
+		
+		// Apply symmetric angular correction
+		const stiffness = 0.5; // increase to 1.0 for absolutely rigid
+		this.rigiA.shape.orientation -= angleError * stiffness * 0.5;
+		this.rigiB.shape.orientation += angleError * stiffness * 0.5;
+		
+		// Optionally zero relative angular velocities to damp out residual wobble
+		let avgAngVel = (this.rigiA.angularVelocity + this.rigiB.angularVelocity) * 0.5;
+		this.rigiA.angularVelocity = avgAngVel;
+		this.rigiB.angularVelocity = avgAngVel;
+		
 		this.restoreMaterial();
 	}
 	
@@ -95,10 +109,18 @@ class FixedJoint extends Joint{
 		}	
 		
 		
+		// Fix orientation strongly (same as above)
 		let currentOrientationDiff = this.rigiA.shape.orientation - this.rigiB.shape.orientation;
-		let fixedOrientationVel = (this.relativeOrientation - currentOrientationDiff);
-		this.rigiA.angularVelocity += fixedOrientationVel * 0.5 * 1;	
-
+		let angleError = this.relativeOrientation - currentOrientationDiff;
+		
+		const stiffness = 0.5; // same factor
+		this.rigiA.shape.orientation += angleError * stiffness * 0.5;
+		this.rigiB.shape.orientation -= angleError * stiffness * 0.5;
+		
+		let avgAngVel = (this.rigiA.angularVelocity + this.rigiB.angularVelocity) * 0.5;
+		this.rigiA.angularVelocity = avgAngVel;
+		this.rigiB.angularVelocity = avgAngVel;
+		
 		this.restoreMaterial();
 	}
 	
