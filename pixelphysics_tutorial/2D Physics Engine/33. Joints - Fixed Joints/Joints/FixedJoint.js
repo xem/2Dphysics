@@ -18,7 +18,7 @@ class FixedJoint extends Joint{
 		
 		this.relativeOrientation = this.rigiB.shape.orientation - this.rigiA.shape.orientation;
 		
-		this.jointIterations = 2000;
+		this.jointIterations = 20;
 		
 	}
 
@@ -57,7 +57,7 @@ class FixedJoint extends Joint{
 		
 		let currentOrientationDiff = this.rigiB.shape.orientation - this.rigiA.shape.orientation - 0.01;
 		let fixedOrientationVel = (this.relativeOrientation - currentOrientationDiff);	
-		this.rigiB.angularVelocity += fixedOrientationVel;		
+		this.rigiB.angularVelocity += fixedOrientationVel * 0.5 * 0.1;		
 		this.restoreMaterial();
 	}
 	
@@ -97,7 +97,7 @@ class FixedJoint extends Joint{
 		
 		let currentOrientationDiff = this.rigiA.shape.orientation - this.rigiB.shape.orientation;
 		let fixedOrientationVel = (this.relativeOrientation - currentOrientationDiff);
-		this.rigiA.angularVelocity += fixedOrientationVel;	
+		this.rigiA.angularVelocity += fixedOrientationVel * 0.5 * 1;	
 
 		this.restoreMaterial();
 	}
