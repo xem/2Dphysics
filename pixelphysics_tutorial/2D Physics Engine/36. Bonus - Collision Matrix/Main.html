@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+    <head>
+    <meta charset="utf-8">
+    <title>2D Physics Engine</title>
+
+    <style>
+        * { padding: 0; margin: 0; }
+        canvas { background: #eee; display: block; margin: 20px auto; }
+    </style>
+    </head>
+
+    <body>
+        <canvas id = "myCanvas" width = "1280" height = "720"></canvas>
+        <script src="Material.js"></script>
+        <script src="Simulation.js"></script>
+        <script src="Vector2.js"></script>
+        <script src="utils/DrawUtils.js"></script>
+        <script src="utils/MathHelper.js"></script>
+        <script src="optimizations/BoundingBox.js"></script>
+        <script src="optimizations/SpatialGrid.js"></script>
+        <script src="optimizations/HashGrid.js"></script>
+        <script src="optimizations/CollisionGroups.js"></script>
+        <script src="joints/JointConnection.js"></script>
+        <script src="joints/Joint.js"></script>
+        <script src="joints/ForceJoints.js"></script>
+        <script src="joints/SpringJoint.js"></script>
+        <script src="joints/ReverseForceJoint.js"></script>
+        <script src="joints/FixedJoint.js"></script>
+        <script src="joints/HingeJoint.js"></script>
+        <script src="shapes/Shape.js"></script>
+        <script src="shapes/Circle.js"></script>
+        <script src="shapes/Polygon.js"></script>
+        <script src="shapes/Rectangle.js"></script>
+        <script src="CollisionDetection.js"></script>
+        <script src="CollisionManifold.js"></script>
+        <script src="Rigidbody.js"></script>
+       
+
+
+        <script>
+            var canvas = document.getElementById("myCanvas");
+            var ctx = canvas.getContext("2d");
+            
+            let lastTime = performance.now();
+            let currentTime = 0;
+            let deltaTime = 0;
+        
+            let mousePos = new Vector2(0,0);
+            let mouseDownLeft = false;
+            let mouseDownRight = false;
+
+            let simulation = new Simulation(new Vector2(canvas.width, canvas.height));
+
+            function getMousePos(canvas, evt){
+                var rect = canvas.getBoundingClientRect();
+                return{
+                    x: evt.clientX - rect.left,
+                    y: evt.clientY - rect.top
+                };
+            }
+
+
+            window.addEventListener('keydown', function(evt){
+                simulation.onKeyboardPressed(evt);
+            })
+
+            canvas.addEventListener('mousemove', function(evt){
+                mouse = getMousePos(canvas,evt);
+                mousePos = new Vector2(mouse.x,mouse.y);
+
+                //console.log(mousePos);
+            })
+
+            window.addEventListener('mousedown', function(evt){
+                if(evt.button == 0) mouseDownLeft = true;
+                if(evt.button == 2) mouseDownRight = true;
+
+                //console.log(mouseDownLeft);
+            })
+
+            window.addEventListener('mouseup', function(evt){
+                if(evt.button == 0) mouseDownLeft = false;
+                if(evt.button == 2) mouseDownRight = false;
+
+                //console.log(mouseDownLeft);
+            })
+
+            mainLoop();
+
+
+            function updateSimulation(deltaTime){
+                clear();
+
+                let deltaTimeText = Math.round(1.0 / deltaTime,2) + " FPS";
+                DrawUtils.drawText(new Vector2(10,20),12,"black",deltaTimeText);
+
+                simulation.update(deltaTime);
+                simulation.draw(ctx);
+            }
+
+            function mainLoop(){
+                window.requestAnimationFrame(mainLoop);
+
+                currentTime = performance.now();
+                deltaTime = (currentTime - lastTime) / 1000;
+                updateSimulation(deltaTime);
+                
+                
+                lastTime = currentTime;
+            }
+
+            function clear(){
+                ctx.fillStyle = "white";
+                ctx.fillRect(0,0, canvas.width, canvas.height);
+            }
+
+        </script>
+    </body>
+</html>

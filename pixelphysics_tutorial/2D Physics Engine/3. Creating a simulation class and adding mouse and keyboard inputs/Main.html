@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>2D Physics Engine</title>
+    <style>
+    	* { padding: 0; margin: 0; }
+    	canvas { background: #eee; display: block; margin: 20px auto; }
+    </style>
+</head>
+<body>
+
+<!-- added #oncontextmenu="return false;"# to avoid showing up the menu when pressing the right button -->
+<canvas oncontextmenu="return false;"  id="myCanvas" width="1280" height="720"></canvas>
+<!-- Wee need to add the new file "Simulation" to use it -->
+<script src="Simulation.js"></script>
+
+<script>
+	var canvas = document.getElementById("myCanvas");
+	var ctx = canvas.getContext("2d");
+	
+	// For DeltaTime
+	let lastTime = performance.now();
+    let currentTime = 0;
+    let deltaTime = 0;
+	
+	// For Input
+	let mousePosWindow;
+	let mousePos = [0,0]; // needs default value - otherwise undefined exception
+	let mouseDownLeft = false;
+	let mouseDownRight = false;
+	
+	// Create a new object of the simulation class and use it in updateSimulation
+	let simulation = new Simulation();
+	
+	// Getting the mousepos relative to the canvas
+	function getMousePos(canvas, evt) {
+		var rect = canvas.getBoundingClientRect();
+		return {
+			x: evt.clientX - rect.left,
+			y: evt.clientY - rect.top
+		};
+	}	
+	
+	// Adding a listener to the canvas, gets called when mouse is moving
+	canvas.addEventListener('mousemove', function(evt) {
+			mouse = getMousePos(canvas, evt);
+			mousePos = [mouse.x,mouse.y]; // replacing this with a vector
+	}, false);
+
+	// Adding a keydown listener
+	window.addEventListener('keydown',	function(evt){
+		simulation.onKeyboardPressed(evt);
+	},false);
+	
+	// Adding a mousedown listener
+	window.addEventListener('mousedown',function(evt){
+		if(evt.button == 0) mouseDownLeft = true;		
+		if(evt.button == 2) mouseDownRight = true;
+	},false);
+	
+	// Adding a mouseup listener
+	window.addEventListener('mouseup',	function(evt){
+		if(evt.button == 0) mouseDownLeft = false;		
+		if(evt.button == 2) mouseDownRight = false;
+	},false);
+	
+
+	
+	mainLoop();
+	
+	function updateSimulation(dt){
+
+		// First updating then drawing
+		simulation.update(dt);
+		simulation.draw(ctx);
+		
+	}
+	
+	function mainLoop(){
+		window.requestAnimationFrame(mainLoop);
+		
+		currentTime = performance.now()
+		deltaTime = (currentTime - lastTime) / 1000;	
+		
+		updateSimulation(deltaTime);
+		
+		lastTime = currentTime;
+	}
+	
+
+	
+	
+</script>
+
+</body>
+</html>

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>2D Physics Engine</title>
+    <style>
+    	* { padding: 0; margin: 0; }
+    	canvas { background: #d1d1d1; display: block; margin: 20px auto; }
+    </style>
+</head>
+<body>
+
+
+<canvas oncontextmenu="return false;"  id="myCanvas" width="1280" height="720" style="border: solid 1px black;"></canvas>
+
+
+<script src="Simulation.js"></script>
+<script src="Material.js"></script>
+<script src="Vector2.js"></script>
+<script src="Utils/DrawUtils.js"></script>
+<script src="MathHelper.js"></script>
+<script src="Shapes/Shape.js"></script>
+<script src="Optimizations/BoundingBox.js"></script>
+<script src="Optimizations/SpatialGrid.js"></script>
+<script src="Optimizations/Hashgrid.js"></script>
+<script src="Optimizations/CollisionGroups.js"></script>
+<script src="Shapes/Circle.js"></script>
+<script src="Shapes/Polygon.js"></script>
+<script src="Shapes/Rectangle.js"></script>
+<script src="CollisionDetection.js"></script>
+<script src="CollisionManifold.js"></script>
+<script src="Rigidbody.js"></script>
+<script src="Joints/Joint.js"></script>
+<script src="Joints/JointConnection.js"></script>
+<script src="Joints/ForceJoint.js"></script>
+<script src="Joints/SpringJoint.js"></script>
+<script src="Joints/ReverseForceJoint.js"></script>
+<script src="Joints/HingeJoint.js"></script>
+
+<script>
+	var canvas = document.getElementById("myCanvas");
+	var ctx = canvas.getContext("2d");
+	
+	// For DeltaTime
+	let lastTime = performance.now();
+    let currentTime = 0;
+    let deltaTime = 0;
+	
+	// For Input
+	let mousePosWindow;
+	let mousePos = new Vector2(0,0); // changed now to Vector2 instead of a tuple
+	let mouseDownLeft = false;
+	let mouseDownRight = false;
+	
+	// Create a new object of the simulation class and use it in updateSimulation
+	let simulation = new Simulation(new Vector2(canvas.width,canvas.height));
+	
+	// Getting the mousepos relative to the canvas
+	function getMousePos(canvas, evt) {
+		var rect = canvas.getBoundingClientRect();
+		return {
+			x: evt.clientX - rect.left,
+			y: evt.clientY - rect.top
+		};
+	}	
+	
+	// Adding a listener to the canvas, gets called when mouse is moving
+	canvas.addEventListener('mousemove', function(evt) {
+			mouse = getMousePos(canvas, evt);
+			// mousePos is now a vector
+			mousePos.x = mouse.x;
+			mousePos.y = mouse.y; 
+	}, false);
+
+	// Adding a keydown listener
+	window.addEventListener('keydown',	function(evt){
+		simulation.onKeyboardPressed(evt);
+	},false);
+	
+	// Adding a mousedown listener
+	window.addEventListener('mousedown',function(evt){
+		if(evt.button == 0) mouseDownLeft = true;		
+		if(evt.button == 2) mouseDownRight = true;
+	},false);
+	
+	// Adding a mouseup listener
+	window.addEventListener('mouseup',	function(evt){
+		if(evt.button == 0) mouseDownLeft = false;		
+		if(evt.button == 2) mouseDownRight = false;
+	},false);
+	
+
+	
+	mainLoop();
+	
+	function updateSimulation(dt){
+	
+		// First updating then drawing
+		Clear();
+		let deltaTimeText = Math.round(1/dt,2) + " FPS";
+		DrawUtils.drawText(new Vector2(10,20), 12, "black", deltaTimeText);
+		simulation.update(dt);
+		simulation.draw(ctx);
+		
+	}
+	
+	function mainLoop(){
+		window.requestAnimationFrame(mainLoop);
+		
+		currentTime = performance.now()
+		deltaTime = (currentTime - lastTime) / 1000;	
+		
+		updateSimulation(deltaTime);
+		
+		lastTime = currentTime;
+	}
+	
+	function Clear(){
+		ctx.fillStyle = "white";
+		ctx.fillRect(0,0,canvas.width,canvas.height);	
+	}
+	
+	
+</script>
+
+</body>
+</html>

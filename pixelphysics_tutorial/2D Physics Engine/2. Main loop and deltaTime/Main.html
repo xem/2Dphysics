@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>2D Physics Engine</title>
+	<!-- Setting the main window style -->
+    <style>
+    	* { padding: 0; margin: 0; }
+    	canvas { background: #eee; display: block; margin: 20px auto; }
+    </style>
+</head>
+<body>
+
+<canvas id="myCanvas" width="1280" height="720"></canvas>
+
+<script>
+	// Getting the canvas object by its id "myCanvas"
+	var canvas = document.getElementById("myCanvas");
+	// Getting the context of the canvas - we need the context every time, when we want to draw something
+	var ctx = canvas.getContext("2d");
+	
+	// Drawing a red rectangle just to see that everything works
+	/* 
+	ctx.beginPath();
+	ctx.rect(20, 40, 50, 50);
+	ctx.fillStyle = "#FF0000";
+	ctx.fill();
+	ctx.closePath();
+	*/
+	
+	let lastTime = performance.now();
+    let currentTime = 0;
+    let deltaTime = 0;
+
+	mainLoop();
+	
+	function updateSimulation(dt){
+		// Rounding deltaTime to 2 decimal places 
+		console.log("Updating simulation - deltaTime: "+Math.round(deltaTime * 100) / 100)+"ms";
+	}
+	
+	function mainLoop(){
+		window.requestAnimationFrame(mainLoop);
+		
+		// Measuring the time it took to perform one update iteration
+		currentTime = performance.now()
+		deltaTime = (currentTime - lastTime) / 1000;	
+		//Update Simulation
+		updateSimulation(deltaTime);
+		
+		lastTime = currentTime;
+	}
+	
+	
+</script>
+
+</body>
+</html>
