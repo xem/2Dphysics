@@ -1,0 +1,52 @@
+<!doctype html>
+<canvas id=a width=800 height=600 style="background:#eee"></canvas>
+<script>
+
+// Canvas setup
+c = a.getContext("2d");
+
+// Globals
+mx = 0, my = 0,     // mouse x, y
+mlb = 0, mrb = 0,   // mouse left and right button
+
+// Event listeners
+onmousemove = e => {
+  mx = e.pageX - a.offsetLeft;
+  my = e.pageY - a.offsetTop;
+}
+
+onmousedown = e => {
+  if(e.button == 0) mlb = 1;
+  if(e.button == 2) mrb = 1;
+}
+
+onmouseup = e => {
+  if(e.button == 0) mlb = 0;
+  if(e.button == 2) mrb = 0;
+}
+
+a.oncontextmenu = () => {
+  return false;
+}
+
+onkeydown = e => {
+  console.log(e.code);
+}
+
+// Update the physics engine
+update = () => {
+  console.log(mx, my);
+}
+
+// Render the scene
+draw = () => {
+  c.fillRect(100,100,20,20);
+}
+
+// Main loop
+setInterval(() => {
+  update();
+  draw();
+}, 16);
+
+</script>
