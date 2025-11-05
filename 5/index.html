@@ -45,6 +45,24 @@ add = (v, w) => Vec2(v.x + w.x, v.y + w.y);
 sub = (v, w) => add(v, scale(w, -1));
 scale = (v, n) => Vec2(v.x * n, v.y * n);
 
+// Debug
+drawPoint = (center, radius = 5, color = "#888") => {
+  c.beginPath();
+  c.fillStyle = color;
+  c.arc(center.x, center.y, radius, 0, 7);
+  c.fill();
+  c.closePath();
+}
+
+drawLine = (start, end, color = "#888") => {
+  c.beginPath();
+  c.strokeStyle = color;
+  c.moveTo(start.x, start.y);
+  c.lineTo(end.x, end.y);
+  c.stroke();
+  c.closePath();
+}
+
 // Update the physics engine
 update = () => {
   console.log(mx, my);
@@ -53,6 +71,8 @@ update = () => {
 // Render the scene
 draw = () => {
   c.fillRect(100, 100, 20, 20);
+  drawPoint(Vec2(200,200));
+  drawLine(Vec2(300, 50), Vec2(400, 150));
 }
 
 // Main loop

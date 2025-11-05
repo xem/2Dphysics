@@ -26,16 +26,16 @@ onmouseup = e => {
 }
 
 a.oncontextmenu = () => {
-  return false;
+  return false; // prevent right click dropdown
 }
 
 onkeydown = e => {
-  console.log(e.code);
+  console.log(e.code); // Test logs
 }
 
 // Update the physics engine
 update = () => {
-  console.log(mx, my);
+  console.log(mx, my); // Test logs
 }
 
 // Render the scene
