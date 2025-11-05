@@ -40,7 +40,12 @@ update = () => {
 
 // Render the scene
 draw = () => {
-  c.fillRect(100, 100, 20, 20); // Test: draw a black square
+
+  // Reset canvas
+  a.width = a.width;
+
+  // Test: draw a black square
+  c.fillRect(100, 100, 20, 20);
 }
 
 // Main loop

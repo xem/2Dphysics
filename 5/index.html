@@ -70,6 +70,11 @@ update = () => {
 
 // Render the scene
 draw = () => {
+
+  // Reset canvas
+  a.width = a.width;
+
+  // Test: draw some shapes
   c.fillRect(100, 100, 20, 20);
   drawPoint(Vec2(200,200));
   drawLine(Vec2(300, 50), Vec2(400, 150));
