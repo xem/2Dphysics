@@ -100,7 +100,7 @@ translateShape = (shape, offset) => {
   
   // Rectangle (move vertices)
   if(shape.type == "rectangle"){
-    for(i in shape.vertices){
+    for(var i in shape.vertices){
       shape.vertices[i] = add(shape.vertices[i], offset);
     }
   }
@@ -114,7 +114,7 @@ rotateShape = (shape, angle) => {
   
   // Rectangle (rotate vertices)
   if(shape.type == "rectangle"){
-    for(i in shape.vertices){
+    for(var i in shape.vertices){
       shape.vertices[i] = rotate(shape.vertices[i], shape.center, angle);
     }
   }
@@ -131,6 +131,7 @@ drawPoint = (center, radius = 5, color = "#888") => {
 
 drawLine = (start, end, color = "#888") => {
   c.beginPath();
+  c.lineWidth = 3;
   c.strokeStyle = color;
   c.moveTo(start.x, start.y);
   c.lineTo(end.x, end.y);
@@ -142,7 +143,7 @@ drawLine = (start, end, color = "#888") => {
 update = () => {
 
   // Test: rotate all shapes
-  for(i of shapes){
+  for(var i of shapes){
     rotateShape(i, .01);
   }
   
@@ -182,7 +183,7 @@ draw = () => {
   a.width = a.width;
 
   // Draw shapes
-  for(i of shapes){
+  for(var i of shapes){
     c.save();
     c.beginPath();
     
@@ -213,8 +214,8 @@ draw = () => {
 
   // Debug: draw manifold
   if(manifold){
-    drawPoint(manifold.contactPoint, 5, "blue");
-    drawLine(manifold.contactPoint, add(manifold.contactPoint, scale(manifold.normal, 50)), "blue");
+    drawPoint(manifold.contactPoint, 5, "#04F");
+    drawLine(manifold.contactPoint, add(manifold.contactPoint, scale(manifold.normal, 50)), "#04F");
   }
 }
 

@@ -9,6 +9,7 @@ c = a.getContext("2d");
 mx = 0, my = 0;     // mouse x, y
 mlb = 0, mrb = 0;   // mouse left and right button
 shapes = [];
+manifold = null;
 
 // Event listeners
 onmousemove = e => {
@@ -84,9 +85,14 @@ rectangle = (center, width, height, angle = 0, color = "#ddd") => {
     ]
   };
   
+  // Rotation
   if(angle) {
     rotateShape(shape, angle);
   }
+  
+  // Normals
+  calcNormals(shape);
+  
   shapes.push(shape);
   return shape;
 };
@@ -111,12 +117,80 @@ rotateShape = (shape, angle) => {
   // Update angle
   shape.angle += angle;
   
-  // Rectangle (rotate vertices)
+  // Rectangle (rotate vertices and recompute normals)
   if(shape.type == "rectangle"){
     for(var i in shape.vertices){
       shape.vertices[i] = rotate(shape.vertices[i], shape.center, angle);
     }
+    calcNormals(shape);
   }
+}
+
+// Compute the normals of a polygon
+calcNormals = shape => {
+  shape.normals = [];
+  for(var i = 0; i < shape.vertices.length; i++){
+    shape.normals.push(normal(normalize(sub(shape.vertices[(i + 1) % shape.vertices.length], shape.vertices[i]))));
+  }
+}
+
+// SAT: test two rectangles against each other's axis and choose the minimal penetration depth
+rectangleRectangleCollision = (r1, r2) => {
+  var contact = null;
+  
+  var contactA = getContactPoint(r1, r2);
+  if(contactA == null) return null;
+  
+  var contactB = getContactPoint(r2, r1);
+  if(contactB == null) return null;
+  
+  if(contactA.depth < contactB.depth){
+    contact = contactA;
+  }
+  else {
+    contact = contactB;
+    contact.normal = scale(contact.normal, -1);
+  }
+  
+  return contact;
+}
+
+// SAT: Test all normals of rectangle 1 as potential separating axis
+getContactPoint = (r1, r2) => {
+  var contact = null;
+  var minDepth = Number.MAX_VALUE;
+  var supportPoint = null;
+  for(var i = 0; i < r1.normals.length; i++){
+    supportPoint = findSupportPoint(r1.normals[i], r1.vertices[i], r2.vertices);
+    if(supportPoint == null) return null;
+    if(supportPoint.depth < minDepth){
+      minDepth = supportPoint.depth;
+      contact = {
+        depth: minDepth,
+        normal: r1.normals[i],
+        contactPoint: supportPoint.vertex
+      };
+    }
+  }
+  return contact;
+}
+
+// SAT: Find which vertex from other rectangle penetrates the deepest along a given axis
+findSupportPoint = (normalOnEdge, pointOnEdge, otherPolygonVertices) => {
+  var maxDepth = 0;
+  var supportPoint = null;
+  var depth = null;
+  for(var i = 0; i < otherPolygonVertices.length; i++){
+    depth = dot(sub(otherPolygonVertices[i], pointOnEdge), scale(normalOnEdge, -1));
+    if(depth > maxDepth){
+      maxDepth = depth;
+      supportPoint = {
+        vertex: otherPolygonVertices[i],
+        depth: depth
+      };
+    }
+  }
+  return supportPoint;
 }
 
 // Debug
@@ -141,26 +215,60 @@ drawLine = (start, end, color = "#888") => {
 // Update the physics engine
 update = () => {
 
+  var push;
+
   // Test: rotate all shapes
   for(var i of shapes){
     rotateShape(i, .01);
   }
   
-  // Test: translate each shape
-  translateShape(c1, Vec2(.1, .1));
-  translateShape(c2, Vec2(-.1, .1));
+  // Test: translate one shape
+  translateShape(r1, Vec2(.2, .2));
   
+  // Test: detect rectangle-rectangle collisions
+  if(r1.type == "rectangle" && r2.type == "rectangle"){
+    manifold = rectangleRectangleCollision(r1, r2);
+    if(manifold){
+      r1.color = "red";
+      r2.color = "red";
+      push = scale(manifold.normal, manifold.depth * 0.5);
+      translateShape(r2, push);
+      translateShape(r1, scale(push, -1));
+    }
+    else {
+      r1.color = "#888";
+      r2.color = "#888";
+      manifold = null;
+    }
+  }
+  
+  /*
   // Test: detect circle-circle collisions
   if(c1.type == "circle" && c2.type == "circle"){
-    if(dist(c1.center, c2.center) < (c1.radius + c2.radius)){
+    direction = sub(c2.center, c1.center);
+    distance = dist(c1.center, c2.center);
+    if(distance < (c1.radius + c2.radius)){
+    
+      manifold = {
+        depth: (c1.radius + c2.radius) - distance,
+        normal: normalize(direction),
+        contactPoint: add(c1.center, scale(normalize(direction), c1.radius))
+      };
+      
+      // Push c2
+      c2.center = add(c2.center, scale(manifold.normal, manifold.depth));
+      
       c1.color = "red";
       c2.color = "red";
     }
     else {
       c1.color = "#ddd";
       c2.color = "#ddd";
+      manifold = null;
     }
   }
+  */
+  
 }
 
 // Render the scene
@@ -194,9 +302,23 @@ draw = () => {
       c.closePath();
       c.fill();
       c.stroke();
+      
+      /*
+      // Test: draw normals
+      for(j = 0; j < 4; j++){
+        middle = scale(sub(i.vertices[(j + 1) % i.vertices.length], i.vertices[j]), .5);
+        drawLine(add(i.vertices[j], middle), add(add(i.vertices[j], middle), scale(i.normals[j], 30)), "green");
+      }
+      */
     }
 
     c.restore();
+  }
+
+  // Debug: draw manifold
+  if(manifold){
+    drawPoint(manifold.contactPoint, 5, "#04F");
+    drawLine(manifold.contactPoint, add(manifold.contactPoint, scale(manifold.normal, 50)), "#04F");
   }
 }
 
@@ -207,8 +329,8 @@ setInterval(() => {
 }, 16);
 
 // Demo
-c1 = circle(Vec2(100, 100), 50);
-c2 = circle(Vec2(300, 120), 50);
+r1 = rectangle(Vec2(100, 100), 100, 50);
+r2 = rectangle(Vec2(230, 150), 75, 75);
 
 
 </script>
