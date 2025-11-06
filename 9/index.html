@@ -36,7 +36,7 @@ onkeydown = e => {
 
 // 2D vectors
 Vec2 = (x, y) => ({x, y});
-normalize = v => scale(v, 1 / (length(v) || 1));
+normalize = v => scale(v, 1 / len(v));
 len = v => dot(v, v) ** .5;
 len2 = v => dot(v, v);
 normal = v => Vec2(v.y, -v.x);
@@ -97,7 +97,7 @@ var translateShape = (shape, offset) => {
   // Move center
   shape.center = add(shape.center, offset);
   
-  // Rectangle (move vertex)
+  // Rectangle (move vertices)
   if(shape.type == "rectangle"){
     for(var i in shape.vertices){
       shape.vertices[i] = add(shape.vertices[i], offset);
