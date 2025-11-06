@@ -45,6 +45,7 @@ copy = v => Vac2(v.x, v.y);
 add = (v, w) => Vec2(v.x + w.x, v.y + w.y);
 sub = (v, w) => add(v, scale(w, -1));
 scale = (v, n) => Vec2(v.x * n, v.y * n);
+dist = (v, w) => len(sub(v, w));
 rotate = (v, center, angle) => {
   var x = v.x - center.x;
   var y = v.y - center.y;
@@ -139,10 +140,25 @@ drawLine = (start, end, color = "#888") => {
 // Update the physics engine
 update = () => {
 
-  // Test: translate and rotate the shapes
+  // Test: rotate all shapes
   for(i of shapes){
     rotateShape(i, .01);
-    translateShape(i, Vec2(.1, .1));
+  }
+  
+  // Test: translate each shape
+  translateShape(c1, Vec2(.1, .1));
+  translateShape(c2, Vec2(-.1, .1));
+  
+  // Test: detect circle-circle collisions
+  if(c1.type == "circle" && c2.type == "circle"){
+    if(dist(c1.center, c2.center) < (c1.radius + c2.radius)){
+      c1.color = "red";
+      c2.color = "red";
+    }
+    else {
+      c1.color = "#ddd";
+      c2.color = "#ddd";
+    }
   }
 }
 
@@ -190,7 +206,8 @@ setInterval(() => {
 }, 16);
 
 // Demo
-circle(Vec2(100, 100), 50);
-rectangle(Vec2(400, 100), 50, 100);
+c1 = circle(Vec2(100, 100), 50);
+c2 = circle(Vec2(300, 120), 50);
+
 
 </script>
