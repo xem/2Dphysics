@@ -147,8 +147,7 @@ update = () => {
   }
   
   // Test: translate each shape
-  translateShape(c1, Vec2(.1, .1));
-  translateShape(c2, Vec2(-.1, .1));
+  translateShape(c1, Vec2(.2, .2));
   
   // Test: detect circle-circle collisions
   if(c1.type == "circle" && c2.type == "circle"){
@@ -161,6 +160,9 @@ update = () => {
         normal: normalize(direction),
         contactPoint: add(c1.center, scale(normalize(direction), c1.radius))
       };
+      
+      // Push c2
+      c2.center = add(c2.center, scale(manifold.normal, manifold.depth));
       
       c1.color = "red";
       c2.color = "red";
@@ -223,7 +225,7 @@ setInterval(() => {
 }, 16);
 
 // Demo
-c2 = circle(Vec2(200, 170), 50);
+c2 = circle(Vec2(220, 120), 50);
 c1 = circle(Vec2(100, 100), 50);
 
 

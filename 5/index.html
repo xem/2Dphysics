@@ -40,7 +40,7 @@ len = v => dot(v, v) ** .5;
 len2 = v => dot(v, v);
 normal = v => Vec2(v.y, -v.x);
 dot = (v, w) => v.x * w.x + v.y * w.y;
-copy = v => Vac2(v.x, v.y);
+copy = v => Vec2(v.x, v.y);
 add = (v, w) => Vec2(v.x + w.x, v.y + w.y);
 sub = (v, w) => add(v, scale(w, -1));
 scale = (v, n) => Vec2(v.x * n, v.y * n);
