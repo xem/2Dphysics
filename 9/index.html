@@ -47,14 +47,14 @@ sub = (v, w) => add(v, scale(w, -1));
 scale = (v, n) => Vec2(v.x * n, v.y * n);
 dist = (v, w) => len(sub(v, w));
 rotate = (v, center, angle) => {
-  var x = v.x - center.x;
-  var y = v.y - center.y;
+  x = v.x - center.x;
+  y = v.y - center.y;
   return Vec2(x * Math.cos(angle) - y * Math.sin(angle) + center.x, x * Math.sin(angle) + y * Math.cos(angle) + center.y);
 }
 
 // Shapes
 circle = (center, radius, angle = 0, color = "#ddd") => {
-  var shape = {
+  shape = {
     type: "circle",
     center: center,
     radius: radius,
@@ -67,7 +67,7 @@ circle = (center, radius, angle = 0, color = "#ddd") => {
 }
 
 rectangle = (center, width, height, angle = 0, color = "#ddd") => {
-  var shape = {
+  shape = {
     type: "rectangle",
     center: center,
     width: width,
@@ -92,28 +92,28 @@ rectangle = (center, width, height, angle = 0, color = "#ddd") => {
 };
 
 // Translate a shape
-var translateShape = (shape, offset) => {
+translateShape = (shape, offset) => {
 
   // Move center
   shape.center = add(shape.center, offset);
   
   // Rectangle (move vertices)
   if(shape.type == "rectangle"){
-    for(var i in shape.vertices){
+    for(i in shape.vertices){
       shape.vertices[i] = add(shape.vertices[i], offset);
     }
   }
 }
 
 // Rotate a shape around its center (angle in radians)
-var rotateShape = (shape, angle) => {
+rotateShape = (shape, angle) => {
 
   // Update angle
   shape.angle += angle;
   
   // Rectangle (rotate vertices)
   if(shape.type == "rectangle"){
-    for(var i in shape.vertices){
+    for(i in shape.vertices){
       shape.vertices[i] = rotate(shape.vertices[i], shape.center, angle);
     }
   }
