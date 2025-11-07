@@ -193,6 +193,63 @@ findSupportPoint = (normalOnEdge, pointOnEdge, otherPolygonVertices) => {
   return supportPoint;
 }
 
+// circle-rectangle collision
+circleRectangleCollision = (circle, rectangle) => {
+  var contact = circleVsRectangleEdges(circle, rectangle);
+  if(!contact){
+    contact = circleVsRectangleCorners(circle, rectangle);
+  }
+  return contact;
+}
+
+circleVsRectangleEdges = (circle, rectangle) => {
+  var nearestEdgeVertex = null;
+  var nearestEdgeNormal = null;
+  var dirToNext, circleDirToNextProjection, circleDirToNormalProjection;
+  
+  for(var i = 0; i < rectangle.vertices.length; i++){
+    vertToCircle = sub(circle.center, rectangle.vertices[i]);
+    dirToNext = sub(rectangle.vertices[(i + 1) % rectangle.vertices.length], rectangle.vertices[i]);
+    circleDirToNextProjection = dot(vertToCircle, normalize(dirToNext));
+    circleDirToNormalProjection = dot(vertToCircle, rectangle.normals[i]);
+    
+    if(circleDirToNormalProjection >= 0 && circleDirToNextProjection > 0 && circleDirToNextProjection < len(dirToNext)){
+      nearestEdgeNormal = rectangle.normals[i];
+      nearestEdgeVertex = rectangle.vertices[i];
+    }
+  }
+
+  if(nearestEdgeNormal == null || nearestEdgeVertex == null){
+    return null;
+  }
+
+  var projectionToEdgeNormal = dot(nearestEdgeNormal, sub(circle.center, nearestEdgeVertex));
+  if(projectionToEdgeNormal - circle.radius < 0){
+    return {
+      depth: -(projectionToEdgeNormal - circle.radius),
+      normal: scale(nearestEdgeNormal, -1),
+      contactPoint: add(circle.center, scale(nearestEdgeNormal, -circle.radius))
+    };
+  }
+  return null;
+}
+
+circleVsRectangleCorners = (circle, rectangle) => {
+  var dirToCircleCenter;
+  for(var i = 0; i < rectangle.vertices.length; i++){
+    dirToCircleCenter = sub(rectangle.vertices[i], circle.center);
+    if(len2(dirToCircleCenter) < (circle.radius ** 2)){
+      return {
+        depth: circle.radius - len(dirToCircleCenter),
+        normal: normalize(dirToCircleCenter),
+        contactPoint: rectangle.vertices[i]
+      };
+    }
+  }
+  return null;
+}
+
+
 // Debug
 drawPoint = (center, radius = 5, color = "#888") => {
   c.beginPath();
@@ -215,7 +272,7 @@ drawLine = (start, end, color = "#888") => {
 // Update the physics engine
 update = () => {
 
-  var push, manifold;
+  var push, manifold, circle, rectangle;
   
   // Reset manifolds
   manifolds = [];
@@ -229,24 +286,34 @@ update = () => {
   rotateShape(r1, -.01);
   
   // Test: translate a shape
-  translateShape(r1, Vec2(.2, .2));
+  translateShape(r1, Vec2(.2, .1));
   
   // Consider all pairs of shapes
   for(var i = 0; i < shapes.length; i++){
     for(var j = i; j < shapes.length; j++){
       if(i != j){
         
-        // Detect rectangle-rectangle collisions
-        if(shapes[i].type == "rectangle" && shapes[j].type == "rectangle"){
-          manifold = rectangleRectangleCollision(shapes[i], shapes[j]);
-          if(manifold){
-            shapes[i].color = "red";
-            shapes[j].color = "red";
-            push = scale(manifold.normal, manifold.depth * 0.5);
-            translateShape(shapes[j], push);
-            translateShape(shapes[i], scale(push, -1));
-            manifolds.push(manifold);
-          }
+        // Detect circle-rectangle collisions
+        if(shapes[i].type == "rectangle" && shapes[j].type == "circle"){
+          rectangle = shapes[i];
+          circle = shapes[j];
+          manifold = circleRectangleCollision(circle, rectangle);
+        }
+        
+        else if(shapes[i].type == "circle" && shapes[j].type == "rectangle"){
+          circle = shapes[i];
+          rectangle = shapes[j];
+          manifold = circleRectangleCollision(circle, rectangle);
+        }
+        
+        // Collision response
+        if(manifold){
+          circle.color = "red";
+          rectangle.color = "red";
+          push = scale(manifold.normal, manifold.depth * 0.5);
+          translateShape(rectangle, push);
+          translateShape(circle, scale(push, -1));
+          manifolds.push(manifold);
         }
       }
     }
@@ -303,9 +370,8 @@ setInterval(() => {
 }, 16);
 
 // Demo
-r1 = rectangle(Vec2(100, 60), 100, 50);
-r2 = rectangle(Vec2(180, 170), 75, 75);
-r3 = rectangle(Vec2(240, 150), 20, 50);
+r1 = rectangle(Vec2(80, 60), 120, 50);
+c2 = circle(Vec2(180, 130), 50);
 
 
 </script>
