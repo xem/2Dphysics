@@ -54,7 +54,7 @@ rotate = (v, center, angle) => {
 }
 
 // Shapes
-circle = (center, radius, angle = 0, color = "#ddd") => {
+circle = (center, radius, angle = 0, color = "#888") => {
   shape = {
     type: "circle",
     center: center,
@@ -67,7 +67,7 @@ circle = (center, radius, angle = 0, color = "#ddd") => {
   return shape;
 }
 
-rectangle = (center, width, height, angle = 0, color = "#ddd") => {
+rectangle = (center, width, height, angle = 0, color = "#888") => {
   shape = {
     type: "rectangle",
     center: center,
@@ -169,8 +169,8 @@ update = () => {
       c2.color = "red";
     }
     else {
-      c1.color = "#ddd";
-      c2.color = "#ddd";
+      c1.color = "#888";
+      c2.color = "#888";
       manifold = null;
     }
   }
@@ -226,8 +226,8 @@ setInterval(() => {
 }, 16);
 
 // Demo
-c2 = circle(Vec2(220, 120), 50);
-c1 = circle(Vec2(100, 100), 50);
+c1 = circle(Vec2(80, 100), 60);
+c2 = circle(Vec2(220, 140), 60);
 
 
 </script>

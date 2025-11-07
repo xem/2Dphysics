@@ -54,7 +54,7 @@ rotate = (v, center, angle) => {
 }
 
 // Shapes
-circle = (center, radius, angle = 0, color = "#ddd") => {
+circle = (center, radius, angle = 0, color = "#888") => {
   shape = {
     type: "circle",
     center: center,
@@ -67,7 +67,7 @@ circle = (center, radius, angle = 0, color = "#ddd") => {
   return shape;
 }
 
-rectangle = (center, width, height, angle = 0, color = "#ddd") => {
+rectangle = (center, width, height, angle = 0, color = "#888") => {
   shape = {
     type: "rectangle",
     center: center,
@@ -160,36 +160,6 @@ update = () => {
   for(var i of shapes){
     rotateShape(i, .01);
   }
-  
-  /*
-  // Test: translate one shape
-  translateShape(c1, Vec2(.2, .2));
-  
-  // Test: detect circle-circle collisions
-  if(c1.type == "circle" && c2.type == "circle"){
-    direction = sub(c2.center, c1.center);
-    distance = dist(c1.center, c2.center);
-    if(distance < (c1.radius + c2.radius)){
-    
-      manifold = {
-        depth: (c1.radius + c2.radius) - distance,
-        normal: normalize(direction),
-        contactPoint: add(c1.center, scale(normalize(direction), c1.radius))
-      };
-      
-      // Push c2
-      c2.center = add(c2.center, scale(manifold.normal, manifold.depth));
-      
-      c1.color = "red";
-      c2.color = "red";
-    }
-    else {
-      c1.color = "#ddd";
-      c2.color = "#ddd";
-      manifold = null;
-    }
-  }
-  */
 }
 
 // Render the scene

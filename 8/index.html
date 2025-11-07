@@ -52,7 +52,7 @@ rotate = (v, center, angle) => {
 }
 
 // Shapes
-circle = (center, radius, angle = 0, color = "#ddd") => {
+circle = (center, radius, angle = 0, color = "#888") => {
   shape = {
     type: "circle",
     center: center,
@@ -65,7 +65,7 @@ circle = (center, radius, angle = 0, color = "#ddd") => {
   return shape;
 }
 
-rectangle = (center, width, height, angle = 0, color = "#ddd") => {
+rectangle = (center, width, height, angle = 0, color = "#888") => {
   shape = {
     type: "rectangle",
     center: center,
@@ -143,7 +143,7 @@ update = () => {
   // Test: translate and rotate the shapes
   for(var i of shapes){
     rotateShape(i, .01);
-    translateShape(i, Vec2(.1, .1));
+    translateShape(i, Vec2(.2, .2));
   }
 }
 
@@ -191,7 +191,7 @@ setInterval(() => {
 }, 16);
 
 // Demo
-circle(Vec2(100, 100), 50);
-rectangle(Vec2(400, 100), 50, 100);
+circle(Vec2(100, 100), 60);
+rectangle(Vec2(250, 100), 60, 100);
 
 </script>
