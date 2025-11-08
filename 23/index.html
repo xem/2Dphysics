@@ -276,14 +276,23 @@ circleVsRectangleCorners = (circle, rectangle) => {
 
 // Correct positioning
 positionalCorrection = (shape1, shape2, manifold) => {
-  // todo
+  var correction = 0.7;
+  var correctionAmount = manifold.depth / (shape1.invMass + shape2.invMass) * correction;
+  var correctionVector = scale(manifold.normal, correctionAmount);
+  if(shape1.invMass > 0){
+    translateShape(shape1, scale(correctionVector, -shape1.invMass));
+  }
+  if(shape2.invMass > 0){
+    translateShape(shape2, scale(correctionVector, shape2.invMass));
+  }
 }
 
 // Resolve collision
 resolveCollision = (shape1, shape2, manifold) => {
   var relativeVelocityAlongNormal = dot(sub(shape2.velocity, shape1.velocity), manifold.normal);
   if(relativeVelocityAlongNormal > 0) return; // shapes are already going away from each other
-  var e = 1; // total elasticity
+  if(shape1.invMass == 0 && shape2.invMass == 0) return;
+  var e = Math.min(shape1.restitution, shape2.restitution); // total elasticity
   var invMassSum = shape1.invMass + shape2.invMass;
   var j = (-(1 + e) * relativeVelocityAlongNormal) / invMassSum; // impulse magnitude
   var impulseVector = scale(manifold.normal, j);

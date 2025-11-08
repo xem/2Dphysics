@@ -143,9 +143,9 @@ rotateShape = (shape, angle) => {
 // Shape integration
 integrate = (shape, deltaTime) => {
   var acceleration = scale(shape.forceAccumulator, shape.invMass); // compute acceleration
-	shape.velocity = add(shape.velocity, scale(acceleration, 1)); // apply acceleration to velocity
-	translateShape(shape, scale(shape.velocity, 1)); // apply velocity to position
-	shape.forceAccumulator = Vec2(0, 0); // reset force accumulator
+  shape.velocity = add(shape.velocity, scale(acceleration, 1)); // apply acceleration to velocity
+  translateShape(shape, scale(shape.velocity, 1)); // apply velocity to position
+  shape.forceAccumulator = Vec2(0, 0); // reset force accumulator
   shape.velocity = scale(shape.velocity, .99); // velocity damping
 }
 
