@@ -5,11 +5,31 @@
 // Canvas setup
 c = a.getContext("2d");
 
+// 2D vectors
+Vec2 = (x, y) => ({x, y});
+normalize = v => scale(v, 1 / len(v));
+len = v => dot(v, v) ** .5;
+len2 = v => dot(v, v);
+normal = v => Vec2(v.y, -v.x);
+dot = (v, w) => v.x * w.x + v.y * w.y;
+copy = v => Vec2(v.x, v.y);
+add = (v, w) => Vec2(v.x + w.x, v.y + w.y);
+sub = (v, w) => add(v, scale(w, -1));
+scale = (v, n) => Vec2(v.x * n, v.y * n);
+dist = (v, w) => len(sub(v, w));
+rotate = (v, center, angle, x, y) => {
+  x = v.x - center.x;
+  y = v.y - center.y;
+  return Vec2(x * Math.cos(angle) - y * Math.sin(angle) + center.x, x * Math.sin(angle) + y * Math.cos(angle) + center.y);
+}
+
 // Globals
 mx = 0, my = 0;     // mouse x, y
 mlb = 0, mrb = 0;   // mouse left and right button
 shapes = [];
 manifolds = [];
+deltaTime = 1;
+gravity = Vec2(0, 0.1);
 
 // Event listeners
 onmousemove = e => {
@@ -35,34 +55,19 @@ onkeydown = e => {
   console.log(e.code);
 }
 
-// 2D vectors
-Vec2 = (x, y) => ({x, y});
-normalize = v => scale(v, 1 / len(v));
-len = v => dot(v, v) ** .5;
-len2 = v => dot(v, v);
-normal = v => Vec2(v.y, -v.x);
-dot = (v, w) => v.x * w.x + v.y * w.y;
-copy = v => Vec2(v.x, v.y);
-add = (v, w) => Vec2(v.x + w.x, v.y + w.y);
-sub = (v, w) => add(v, scale(w, -1));
-scale = (v, n) => Vec2(v.x * n, v.y * n);
-dist = (v, w) => len(sub(v, w));
-rotate = (v, center, angle, x, y) => {
-  x = v.x - center.x;
-  y = v.y - center.y;
-  return Vec2(x * Math.cos(angle) - y * Math.sin(angle) + center.x, x * Math.sin(angle) + y * Math.cos(angle) + center.y);
-}
-
 // Shapes
-circle = (center, radius, mass = 1, velocity = Vec2(0, 0), angle = 0, color = "#888") => {
+circle = (center, radius, mass = 1, friction = 0, restitution = 1, velocity = Vec2(0, 0),  angle = 0, color = "#888") => {
+  
   shape = {
     type: "circle",
     center: center,
     radius: radius,
     mass: mass,
-    invMass: 1 / mass,
-    velocity: velocity,
+    invMass: mass == 0 ? 0 : 1 / mass,
     forceAccumulator: Vec2(0, 0),
+    friction: friction,
+    restitution: restitution,
+    velocity: velocity,
     angle: angle,
     color: color
   };
@@ -71,14 +76,16 @@ circle = (center, radius, mass = 1, velocity = Vec2(0, 0), angle = 0, color = "#
   return shape;
 }
 
-rectangle = (center, width, height, mass = 1, velocity = Vec2(0, 0), angle = 0, color = "#888") => {
+rectangle = (center, width, height, mass = 1, friction = 0, restitution = 1, velocity = Vec2(0, 0), angle = 0, color = "#888") => {
   shape = {
     type: "rectangle",
     center: center,
     width: width,
     height: height,
     mass: mass,
-    invMass: 1 / mass,
+    invMass: mass == 0 ? 0 : 1 / mass,
+    friction: friction,
+    restitution: restitution,
     velocity: velocity,
     forceAccumulator: Vec2(0, 0),
     angle: angle,
@@ -132,6 +139,15 @@ rotateShape = (shape, angle) => {
     }
     calcNormals(shape);
   }
+}
+
+// Shape integration
+integrate = (shape, deltaTime) => {
+  var acceleration = scale(shape.forceAccumulator, shape.invMass); // compute acceleration
+  shape.velocity = add(shape.velocity, scale(acceleration, 1)); // apply acceleration to velocity
+  translateShape(shape, scale(shape.velocity, 1)); // apply velocity to position
+  shape.forceAccumulator = Vec2(0, 0); // reset force accumulator
+  shape.velocity = scale(shape.velocity, .99); // velocity damping
 }
 
 // Compute the normals of a polygon
@@ -258,6 +274,32 @@ circleVsRectangleCorners = (circle, rectangle) => {
 }
 
 
+// Correct positioning
+positionalCorrection = (shape1, shape2, manifold) => {
+  var correction = 0.7;
+  var correctionAmount = manifold.depth / (shape1.invMass + shape2.invMass) * correction;
+  var correctionVector = scale(manifold.normal, correctionAmount);
+  if(shape1.invMass > 0){
+    translateShape(shape1, scale(correctionVector, -shape1.invMass));
+  }
+  if(shape2.invMass > 0){
+    translateShape(shape2, scale(correctionVector, shape2.invMass));
+  }
+}
+
+// Resolve collision
+resolveCollision = (shape1, shape2, manifold) => {
+  var relativeVelocityAlongNormal = dot(sub(shape2.velocity, shape1.velocity), manifold.normal);
+  if(relativeVelocityAlongNormal > 0) return; // shapes are already going away from each other
+  if(shape1.invMass == 0 && shape2.invMass == 0) return;
+  var e = Math.min(shape1.restitution, shape2.restitution); // total elasticity
+  var invMassSum = shape1.invMass + shape2.invMass;
+  var j = (-(1 + e) * relativeVelocityAlongNormal) / invMassSum; // impulse magnitude
+  var impulseVector = scale(manifold.normal, j);
+  shape1.velocity = add(shape1.velocity, scale(impulseVector, -shape1.invMass));
+  shape2.velocity = add(shape2.velocity, scale(impulseVector, shape2.invMass));
+}
+
 // Debug
 drawPoint = (center, radius = 5, color = "#888") => {
   c.beginPath();
@@ -280,7 +322,7 @@ drawLine = (start, end, color = "#888") => {
 // Update the physics engine
 update = () => {
 
-  var push, manifold, circle, rectangle;
+  var push, manifold, shape1, shape2, direction, distance;
   
   // Reset manifolds
   manifolds = [];
@@ -289,29 +331,50 @@ update = () => {
   for(var i of shapes){
     i.color = "#888";
   }
-
-  // Test: rotate a shape
-  rotateShape(r1, -.01);
   
-  // Test: translate a shape
-  translateShape(r1, Vec2(.2, .1));
+  // Apply gravity
+  for(var i of shapes){
+    console.log(i.mass);
+    i.forceAccumulator = add(i.forceAccumulator, scale(gravity, i.mass));
+  }
   
   // Consider all pairs of shapes
   for(var i = 0; i < shapes.length; i++){
     for(var j = i; j < shapes.length; j++){
       if(i != j){
+      
+        shape1 = shapes[i];
+        shape2 = shapes[j];
+
+        // Reset manifold
+        manifold = null;
         
+        // Detect circle-circle collisions
+        if(shape1.type == "circle" && shape2.type == "circle"){
+          direction = sub(c2.center, c1.center);
+          distance = dist(c1.center, c2.center);
+          if(distance < (c1.radius + c2.radius)){
+            manifold = {
+              depth: (c1.radius + c2.radius) - distance,
+              normal: normalize(direction),
+              contactPoint: add(c1.center, scale(normalize(direction), c1.radius))
+            };
+          }
+        }
+      
+        // Detect rectangle-rectangle collisions
+        else if(shape1.type == "rectangle" && shape2.type == "rectangle"){
+          manifold = rectangleRectangleCollision(shape1, shape2);
+        }
+
         // Detect circle-rectangle collisions
-        if(shapes[i].type == "rectangle" && shapes[j].type == "circle"){
-          rectangle = shapes[i];
-          circle = shapes[j];
-          manifold = circleRectangleCollision(circle, rectangle);
+        else if(shape1.type == "rectangle" && shape2.type == "circle"){
+          [shape1, shape2] = [shape2, shape1];
+          manifold = circleRectangleCollision(shape1, shape2);
         }
         
-        else if(shapes[i].type == "circle" && shapes[j].type == "rectangle"){
-          circle = shapes[i];
-          rectangle = shapes[j];
-          manifold = circleRectangleCollision(circle, rectangle);
+        else if(shape1.type == "circle" && shape2.type == "rectangle"){
+          manifold = circleRectangleCollision(shape1, shape2);
         }
         
         // Collision response
@@ -319,12 +382,17 @@ update = () => {
           circle.color = "red";
           rectangle.color = "red";
           push = scale(manifold.normal, manifold.depth * 0.5);
-          translateShape(rectangle, push);
-          translateShape(circle, scale(push, -1));
+          positionalCorrection(shape1, shape2, manifold);
+          resolveCollision(shape1, shape2, manifold);
           manifolds.push(manifold);
         }
       }
     }
+  }
+  
+  // Integration
+  for(i of shapes){
+    integrate(i, deltaTime);
   }
 }
 
@@ -378,8 +446,10 @@ setInterval(() => {
 }, 16);
 
 // Demo
-r1 = rectangle(Vec2(80, 60), 120, 50);
-c2 = circle(Vec2(180, 130), 50);
-
+c1 = circle(Vec2(190, 100), 20, 1, 0, 1, Vec2(1, 1));
+c2 = circle(Vec2(250, 120), 20, 0, 0, 1);
+r1 = rectangle(Vec2(200, 220), 100, 20, .2);
+r2 = rectangle(Vec2(200, 280), 50, 50, 10, 0, 1);
+rectangle(Vec2(200, 350), 400, 20, 0);
 
 </script>

@@ -17,7 +17,7 @@ add = (v, w) => Vec2(v.x + w.x, v.y + w.y);
 sub = (v, w) => add(v, scale(w, -1));
 scale = (v, n) => Vec2(v.x * n, v.y * n);
 dist = (v, w) => len(sub(v, w));
-rotate = (v, center, angle) => {
+rotate = (v, center, angle, x, y) => {
   x = v.x - center.x;
   y = v.y - center.y;
   return Vec2(x * Math.cos(angle) - y * Math.sin(angle) + center.x, x * Math.sin(angle) + y * Math.cos(angle) + center.y);
