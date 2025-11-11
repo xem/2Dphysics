@@ -55,7 +55,7 @@ rotate = (v, center, angle, x, y) => {
 }
 
 // Shapes
-circle = (center, radius, mass = 1, velocity = Vec2(0, 0), angle = 0, color = "#888") => {
+circle = (center, radius, mass = 1, angle = 0, velocity = Vec2(0, 0), color = "#888") => {
   shape = {
     type: "circle",
     center: center,
@@ -63,8 +63,8 @@ circle = (center, radius, mass = 1, velocity = Vec2(0, 0), angle = 0, color = "#
     mass: mass,
     invMass: 1 / mass,
     velocity: velocity,
-    forceAccumulator: Vec2(0, 0),
     angle: angle,
+    forceAccumulator: Vec2(0, 0),
     color: color
   };
   
@@ -81,8 +81,8 @@ rectangle = (center, width, height, mass = 1, velocity = Vec2(0, 0), angle = 0, 
     mass: mass,
     invMass: 1 / mass,
     velocity: velocity,
-    forceAccumulator: Vec2(0, 0),
     angle: angle,
+    forceAccumulator: Vec2(0, 0),
     color: color,
 
     // Rectangle vertices

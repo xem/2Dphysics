@@ -56,7 +56,7 @@ onkeydown = e => {
 }
 
 // Shapes
-circle = (center, radius, mass = 1, friction = 0, restitution = 1, velocity = Vec2(0, 0),  angle = 0, color = "#888") => {
+circle = (center, radius, mass = 1, friction = 0, restitution = 1, angle = 0, velocity = Vec2(0, 0), color = "#888") => {
   
   shape = {
     type: "circle",
@@ -64,11 +64,11 @@ circle = (center, radius, mass = 1, friction = 0, restitution = 1, velocity = Ve
     radius: radius,
     mass: mass,
     invMass: mass == 0 ? 0 : 1 / mass,
-    forceAccumulator: Vec2(0, 0),
     friction: friction,
     restitution: restitution,
-    velocity: velocity,
     angle: angle,
+    velocity: velocity,
+    forceAccumulator: Vec2(0, 0),
     color: color
   };
   
@@ -76,7 +76,7 @@ circle = (center, radius, mass = 1, friction = 0, restitution = 1, velocity = Ve
   return shape;
 }
 
-rectangle = (center, width, height, mass = 1, friction = 0, restitution = 1, velocity = Vec2(0, 0), angle = 0, color = "#888") => {
+rectangle = (center, width, height, mass = 1, friction = 0, restitution = 1, angle = 0, velocity = Vec2(0, 0), color = "#888") => {
   shape = {
     type: "rectangle",
     center: center,
@@ -86,9 +86,9 @@ rectangle = (center, width, height, mass = 1, friction = 0, restitution = 1, vel
     invMass: mass == 0 ? 0 : 1 / mass,
     friction: friction,
     restitution: restitution,
+    angle: angle,
     velocity: velocity,
     forceAccumulator: Vec2(0, 0),
-    angle: angle,
     color: color,
 
     // Rectangle vertices

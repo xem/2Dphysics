@@ -56,18 +56,18 @@ onkeydown = e => {
 }
 
 // Shapes
-circle = (center, radius, mass = 1, friction = 0, restitution = 1, velocity = Vec2(0, 0),  angle = 0, color = "#888") => {
+circle = (center, radius, mass = 1, friction = 0, restitution = 1, angle = 0, velocity = Vec2(0, 0), color = "#888") => {
   shape = {
     type: "circle",
     center: center,
     radius: radius,
     mass: mass,
     invMass: 1 / mass,
-    forceAccumulator: Vec2(0, 0),
     friction: friction,
     restitution: restitution,
     velocity: velocity,
     angle: angle,
+    forceAccumulator: Vec2(0, 0),
     color: color
   };
   
@@ -75,7 +75,7 @@ circle = (center, radius, mass = 1, friction = 0, restitution = 1, velocity = Ve
   return shape;
 }
 
-rectangle = (center, width, height, mass = 1, friction = 0, restitution = 1, velocity = Vec2(0, 0), angle = 0, color = "#888") => {
+rectangle = (center, width, height, mass = 1, friction = 0, restitution = 1, angle = 0, velocity = Vec2(0, 0), color = "#888") => {
   shape = {
     type: "rectangle",
     center: center,
@@ -86,8 +86,8 @@ rectangle = (center, width, height, mass = 1, friction = 0, restitution = 1, vel
     friction: friction,
     restitution: restitution,
     velocity: velocity,
-    forceAccumulator: Vec2(0, 0),
     angle: angle,
+    forceAccumulator: Vec2(0, 0),
     color: color,
 
     // Rectangle vertices
@@ -432,9 +432,9 @@ setInterval(() => {
 }, 16);
 
 // Demo
-c1 = circle(Vec2(190, 100), 20, 1, 0, 1, Vec2(1, 1));
-c2 = circle(Vec2(320, 30), 20, 1, 0, 1, Vec2(-2, 2));
+c1 = circle(Vec2(190, 100), 20, 1, 0, 1, 0, Vec2(1, 1));
+c2 = circle(Vec2(320, 30), 20, 1, 0, 1, 0, Vec2(-2, 2));
 r1 = rectangle(Vec2(200, 220), 100, 20);
-r2 = rectangle(Vec2(200, 280), 50, 50, 1, 0, 1, Vec2(0, -1));
+r2 = rectangle(Vec2(200, 280), 50, 50, 1, 0, 1, 0, Vec2(0, -1));
 
 </script>
