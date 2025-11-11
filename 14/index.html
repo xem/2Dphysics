@@ -138,117 +138,181 @@ calcNormals = shape => {
 rectangleRectangleCollision = (r1, r2) => {
   var contact = null;
   
+  // Check all axes from rectangle A against rectangle B
   var contactA = getContactPoint(r1, r2);
   if(contactA == null) return null;
   
+  // Check all axes from rectangle B against rectangle A
   var contactB = getContactPoint(r2, r1);
   if(contactB == null) return null;
   
+  // Choose the smallest penetration depth (most restrictive axis)
   if(contactA.depth < contactB.depth){
     contact = contactA;
   }
   else {
     contact = contactB;
+    // Reverse the normal direction to ensure it points from A to B
     contact.normal = scale(contact.normal, -1);
   }
   
+  // Return the final contact information (depth, normal, contact point)
   return contact;
 }
 
-// SAT: Test all normals of rectangle 1 as potential separating axis
+// SAT: Test all normals of rectangle 1 as potential separating axes
 getContactPoint = (r1, r2) => {
   var contact = null;
   var minDepth = Number.MAX_VALUE;
   var supportPoint = null;
+
+  // For each normal of rectangle 1
   for(var i = 0; i < r1.normals.length; i++){
+    // Find which vertex of rectangle 2 penetrates deepest along this normal
     supportPoint = findSupportPoint(r1.normals[i], r1.vertices[i], r2.vertices);
+
+    // If there is no overlap along this normal, there is no collision
     if(supportPoint == null) return null;
+
+    // Keep the smallest penetration depth found so far
     if(supportPoint.depth < minDepth){
       minDepth = supportPoint.depth;
+
+      // Store the contact information for this axis
       contact = {
-        depth: minDepth,
-        normal: r1.normals[i],
-        contactPoint: supportPoint.vertex
+        depth: minDepth,              // penetration distance
+        normal: r1.normals[i],        // collision normal (axis of penetration)
+        contactPoint: supportPoint.vertex // point of contact on rectangle 2
       };
     }
   }
+  // Return the axis with the minimum overlap
   return contact;
 }
 
-// SAT: Find which vertex from other rectangle penetrates the deepest along a given axis
+// SAT: Find which vertex from the other rectangle penetrates the deepest along a given axis
 findSupportPoint = (normalOnEdge, pointOnEdge, otherPolygonVertices) => {
   var maxDepth = 0;
   var supportPoint = null;
   var depth = null;
+
+  // For each vertex of the other rectangle
   for(var i = 0; i < otherPolygonVertices.length; i++){
+    // Project the vertex onto the axis defined by the current normal
+    // The 'depth' here represents how far the vertex is behind the edge (penetration distance)
     depth = dot(sub(otherPolygonVertices[i], pointOnEdge), scale(normalOnEdge, -1));
+
+    // Keep the vertex that penetrates the most (maximum depth)
     if(depth > maxDepth){
       maxDepth = depth;
       supportPoint = {
-        vertex: otherPolygonVertices[i],
-        depth: depth
+        vertex: otherPolygonVertices[i], // the vertex with the deepest penetration
+        depth: depth                     // its penetration distance
       };
     }
   }
+
+  // Return the vertex that is deepest along this normal
   return supportPoint;
 }
 
-// circle-rectangle collision
+// Detect collision between a circle and a rectangle
 circleRectangleCollision = (circle, rectangle) => {
+  // First, try to detect a collision between the circle and the rectangle's edges
   var contact = circleVsRectangleEdges(circle, rectangle);
+
+  // If no edge collision was found, test against the rectangle's corners
   if(!contact){
     contact = circleVsRectangleCorners(circle, rectangle);
   }
+
+  // Return the resulting contact information (if any)
   return contact;
 }
 
+// Test collision between a circle and the edges of a rectangle
 circleVsRectangleEdges = (circle, rectangle) => {
   var nearestEdgeVertex = null;
   var nearestEdgeNormal = null;
   var dirToNext, circleDirToNextProjection, circleDirToNormalProjection;
-  
+
+  // Loop over each edge of the rectangle
   for(var i = 0; i < rectangle.vertices.length; i++){
+    // Vector from the current vertex of the rectangle to the circle center
     vertToCircle = sub(circle.center, rectangle.vertices[i]);
+
+    // Direction vector along the current edge
     dirToNext = sub(rectangle.vertices[(i + 1) % rectangle.vertices.length], rectangle.vertices[i]);
+
+    // Project the circle center direction onto the edge direction
     circleDirToNextProjection = dot(vertToCircle, normalize(dirToNext));
+
+    // Project the circle center direction onto the edge normal
     circleDirToNormalProjection = dot(vertToCircle, rectangle.normals[i]);
-    
+
+    // Check if the circle center is within the edge segment bounds
+    // (projection along the edge is between 0 and edge length)
+    // and on the "inner" side of the edge (normal projection ≥ 0)
     if(circleDirToNormalProjection >= 0 && circleDirToNextProjection > 0 && circleDirToNextProjection < len(dirToNext)){
+      // This edge is the nearest potential collision candidate
       nearestEdgeNormal = rectangle.normals[i];
       nearestEdgeVertex = rectangle.vertices[i];
     }
   }
 
+  // If no valid edge was found, no collision is possible along edges
   if(nearestEdgeNormal == null || nearestEdgeVertex == null){
     return null;
   }
 
+  // Compute how far the circle center is from the edge along the normal
   var projectionToEdgeNormal = dot(nearestEdgeNormal, sub(circle.center, nearestEdgeVertex));
+
+  // If the circle overlaps the edge (distance < radius), report a collision
   if(projectionToEdgeNormal - circle.radius < 0){
     return {
+      // Penetration depth (how far the circle intrudes)
       depth: -(projectionToEdgeNormal - circle.radius),
+
+      // Normal points from rectangle toward the circle
       normal: scale(nearestEdgeNormal, -1),
+
+      // Approximate contact point on the circle’s perimeter
       contactPoint: add(circle.center, scale(nearestEdgeNormal, -circle.radius))
     };
   }
+
+  // No edge collision
   return null;
 }
 
+// Test collision between a circle and the corners of a rectangle
 circleVsRectangleCorners = (circle, rectangle) => {
   var dirToCircleCenter;
+
+  // Loop over all rectangle vertices
   for(var i = 0; i < rectangle.vertices.length; i++){
+    // Vector from the circle center to the current corner
     dirToCircleCenter = sub(rectangle.vertices[i], circle.center);
+
+    // If the corner is inside the circle’s radius, a collision occurs
     if(len2(dirToCircleCenter) < (circle.radius ** 2)){
       return {
+        // Penetration depth (difference between radius and distance)
         depth: circle.radius - len(dirToCircleCenter),
+
+        // Normal pointing from circle center toward the corner
         normal: normalize(dirToCircleCenter),
+
+        // Contact point is the rectangle corner itself
         contactPoint: rectangle.vertices[i]
       };
     }
   }
+
+  // No corner inside the circle → no collision
   return null;
 }
-
 
 // Debug
 drawPoint = (center, radius = 5, color = "#888") => {

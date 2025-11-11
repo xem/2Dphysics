@@ -22,6 +22,7 @@ rotate = (v, center, angle, x, y) => {
   y = v.y - center.y;
   return Vec2(x * Math.cos(angle) - y * Math.sin(angle) + center.x, x * Math.sin(angle) + y * Math.cos(angle) + center.y);
 }
+cross = (v, w) => v.x * w.y - v.y * w.x;
 
 // Globals
 mx = 0, my = 0;     // mouse x, y
@@ -387,15 +388,119 @@ positionalCorrection = (shape1, shape2, manifold) => {
 
 // Resolve collision
 resolveCollision = (shape1, shape2, manifold) => {
-  var relativeVelocityAlongNormal = dot(sub(shape2.velocity, shape1.velocity), manifold.normal);
-  if(relativeVelocityAlongNormal > 0) return; // shapes are already going away from each other
-  if(shape1.invMass == 0 && shape2.invMass == 0) return; // both shapes are kinematic
-  var e = Math.min(shape1.restitution, shape2.restitution); // total elasticity
+
+  // If both objects are kinematic, skip
+  if(shape1.invMass == 0 && shape2.invMass == 0) return;
+  
+  // Normal impulse
+
+  // Vectors from each object's center to the contact point
+  var penetrationToCentroidA = sub(manifold.contactPoint, shape1.center);
+  var penetrationToCentroidB = sub(manifold.contactPoint, shape2.center);
+
+  // Linear velocity contribution at the contact point due to angular velocity
+  var angularVelocityPenetrationCentroidA = Vec2(
+    -shape1.angularVelocity * penetrationToCentroidA.y,
+     shape1.angularVelocity * penetrationToCentroidA.x
+  );
+  var angularVelocityPenetrationCentroidB = Vec2(
+    -shape2.angularVelocity * penetrationToCentroidB.y,
+     shape2.angularVelocity * penetrationToCentroidB.x
+  );
+
+  // Total velocity at the contact point = linear + rotational
+  var relativeVelocityA = add(shape1.velocity, angularVelocityPenetrationCentroidA);
+  var relativeVelocityB = add(shape2.velocity, angularVelocityPenetrationCentroidB);
+
+  // Relative velocity between both contact points
+  var relativeVel = sub(relativeVelocityB, relativeVelocityA);
+
+  // Project relative velocity onto the collision normal
+  var velocityInNormal = dot(relativeVel, manifold.normal);
+
+  // If the objects are moving apart (positive relative velocity along the normal), skip
+  if(velocityInNormal > 0) return;
+
+  // Restitution coefficient (bounciness)
+  var e = Math.min(shape1.restitution, shape2.restitution);
+
+  // Compute the "lever arm" cross product (how far from the center the impulse acts)
+  var pToCentroidCrossNormalA = cross(penetrationToCentroidA, manifold.normal);
+  var pToCentroidCrossNormalB = cross(penetrationToCentroidB, manifold.normal);
+
+  // Effective inverse mass including both linear and rotational contributions
   var invMassSum = shape1.invMass + shape2.invMass;
-  var j = (-(1 + e) * relativeVelocityAlongNormal) / invMassSum; // impulse magnitude
+  var rigiAInvInertia = shape1.invInertia;
+  var rigiBInvInertia = shape2.invInertia;
+  var crossNSum =
+    pToCentroidCrossNormalA * pToCentroidCrossNormalA * rigiAInvInertia +
+    pToCentroidCrossNormalB * pToCentroidCrossNormalB * rigiBInvInertia;
+
+  // Compute the scalar impulse magnitude (j)
+  var j = -(1 + e) * velocityInNormal;
+  j /= (invMassSum + crossNSum);
+
+  // Convert scalar impulse into a vector along the collision normal
   var impulseVector = scale(manifold.normal, j);
-  shape1.velocity = add(shape1.velocity, scale(impulseVector, -shape1.invMass));
+
+  // Apply impulse to linear velocities (in opposite directions)
+  shape1.velocity = sub(shape1.velocity, scale(impulseVector, shape1.invMass));
   shape2.velocity = add(shape2.velocity, scale(impulseVector, shape2.invMass));
+
+  // Apply rotational impulse based on lever arm and inverse inertia
+  shape1.angularVelocity += -pToCentroidCrossNormalA * j * rigiAInvInertia;
+  shape2.angularVelocity +=  pToCentroidCrossNormalB * j * rigiBInvInertia;
+
+  // Frictional impulse
+
+  // Compute the component of the relative velocity along the collision normal
+  var velocityInNormalDirection = scale(manifold.normal, dot(relativeVel, manifold.normal));
+
+  // Subtract that from the total relative velocity to get the tangential direction
+  var tangent = sub(relativeVel, velocityInNormalDirection);
+
+  // Reverse tangent direction (optional, depending on sign convention)
+  tangent = scale(tangent, -1);
+
+  // Use the smallest friction coefficient between the two shapes
+  var minFriction = Math.min(shape1.friction, shape2.friction);
+
+  // (Debug) If tangent has positive components, normalize and draw it
+  if(tangent.x > 0 || tangent.y > 0){
+    tangent = normalize(tangent);    
+    drawLine(shape1.center, add(shape1.center, scale(tangent, 40)));
+  }
+
+  // Compute lever arms (distance vectors crossed with tangent direction)
+  // Used to determine rotational influence for each body
+  var pToCentroidCrossTangentA = cross(penetrationToCentroidA, tangent);
+  var pToCentroidCrossTangentB = cross(penetrationToCentroidB, tangent);
+
+  // Effective inverse mass for the tangential direction (accounts for rotation)
+  var crossSumTangent =
+    pToCentroidCrossTangentA * pToCentroidCrossTangentA * rigiAInvInertia +
+    pToCentroidCrossTangentB * pToCentroidCrossTangentB * rigiBInvInertia;
+
+  // Compute the tangential (frictional) impulse magnitude
+  // This resists sliding motion along the tangent direction
+  var frictionalImpulse = -(1 + e) * dot(relativeVel, tangent) * minFriction;
+
+  // Divide by total effective mass (linear + rotational)
+  frictionalImpulse /= (invMassSum + crossSumTangent);
+
+  // Limit frictional impulse so it doesn’t exceed the normal impulse
+  if(frictionalImpulse > j){ frictionalImpulse = j; }
+
+  // Convert scalar friction impulse into a vector along the tangent
+  var frictionalImpulseVector = scale(tangent, frictionalImpulse);
+
+  // Apply friction impulse to linear velocities of both bodies
+  shape1.velocity = sub(shape1.velocity, scale(frictionalImpulseVector, shape1.invMass));
+  shape2.velocity = add(shape2.velocity, scale(frictionalImpulseVector, shape2.invMass));    
+
+  // Apply angular (rotational) impulse due to friction
+  shape1.angularVelocity += -pToCentroidCrossTangentA * frictionalImpulse * rigiAInvInertia;    
+  shape2.angularVelocity +=  pToCentroidCrossTangentB * frictionalImpulse * rigiBInvInertia;
 }
 
 // Debug

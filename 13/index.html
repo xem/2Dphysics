@@ -138,58 +138,81 @@ calcNormals = shape => {
 rectangleRectangleCollision = (r1, r2) => {
   var contact = null;
   
+  // Check all axes from rectangle A against rectangle B
   var contactA = getContactPoint(r1, r2);
   if(contactA == null) return null;
   
+  // Check all axes from rectangle B against rectangle A
   var contactB = getContactPoint(r2, r1);
   if(contactB == null) return null;
   
+  // Choose the smallest penetration depth (most restrictive axis)
   if(contactA.depth < contactB.depth){
     contact = contactA;
   }
   else {
     contact = contactB;
+    // Reverse the normal direction to ensure it points from A to B
     contact.normal = scale(contact.normal, -1);
   }
   
+  // Return the final contact information (depth, normal, contact point)
   return contact;
 }
 
-// SAT: Test all normals of rectangle 1 as potential separating axis
+// SAT: Test all normals of rectangle 1 as potential separating axes
 getContactPoint = (r1, r2) => {
   var contact = null;
   var minDepth = Number.MAX_VALUE;
   var supportPoint = null;
+
+  // For each normal of rectangle 1
   for(var i = 0; i < r1.normals.length; i++){
+    // Find which vertex of rectangle 2 penetrates deepest along this normal
     supportPoint = findSupportPoint(r1.normals[i], r1.vertices[i], r2.vertices);
+
+    // If there is no overlap along this normal, there is no collision
     if(supportPoint == null) return null;
+
+    // Keep the smallest penetration depth found so far
     if(supportPoint.depth < minDepth){
       minDepth = supportPoint.depth;
+
+      // Store the contact information for this axis
       contact = {
-        depth: minDepth,
-        normal: r1.normals[i],
-        contactPoint: supportPoint.vertex
+        depth: minDepth,              // penetration distance
+        normal: r1.normals[i],        // collision normal (axis of penetration)
+        contactPoint: supportPoint.vertex // point of contact on rectangle 2
       };
     }
   }
+  // Return the axis with the minimum overlap
   return contact;
 }
 
-// SAT: Find which vertex from other rectangle penetrates the deepest along a given axis
+// SAT: Find which vertex from the other rectangle penetrates the deepest along a given axis
 findSupportPoint = (normalOnEdge, pointOnEdge, otherPolygonVertices) => {
   var maxDepth = 0;
   var supportPoint = null;
   var depth = null;
+
+  // For each vertex of the other rectangle
   for(var i = 0; i < otherPolygonVertices.length; i++){
+    // Project the vertex onto the axis defined by the current normal
+    // The 'depth' here represents how far the vertex is behind the edge (penetration distance)
     depth = dot(sub(otherPolygonVertices[i], pointOnEdge), scale(normalOnEdge, -1));
+
+    // Keep the vertex that penetrates the most (maximum depth)
     if(depth > maxDepth){
       maxDepth = depth;
       supportPoint = {
-        vertex: otherPolygonVertices[i],
-        depth: depth
+        vertex: otherPolygonVertices[i], // the vertex with the deepest penetration
+        depth: depth                     // its penetration distance
       };
     }
   }
+
+  // Return the vertex that is deepest along this normal
   return supportPoint;
 }
 
