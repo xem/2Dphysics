@@ -386,8 +386,8 @@ update = () => {
         
         // Collision response
         if(manifold){
-          circle.color = "red";
-          rectangle.color = "red";
+          shape1.color = "red";
+          shape2.color = "red";
           push = scale(manifold.normal, manifold.depth * 0.5);
           translateShape(rectangle, push);
           translateShape(circle, scale(push, -1));

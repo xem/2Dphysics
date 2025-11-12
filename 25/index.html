@@ -551,8 +551,8 @@ update = () => {
         
         // Collision response
         if(manifold){
-          circle.color = "red";
-          rectangle.color = "red";
+          shape1.color = "red";
+          shape2.color = "red";
           push = scale(manifold.normal, manifold.depth * 0.5);
           positionalCorrection(shape1, shape2, manifold);
           resolveCollision(shape1, shape2, manifold);
