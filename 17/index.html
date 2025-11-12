@@ -56,7 +56,7 @@ rotate = (v, center, angle, x, y) => {
 
 // Shapes
 circle = (center, radius, mass = 1, angle = 0, velocity = Vec2(0, 0), color = "#888") => {
-  shape = {
+  var shape = {
     type: "circle",
     center: center,
     radius: radius,
@@ -73,7 +73,7 @@ circle = (center, radius, mass = 1, angle = 0, velocity = Vec2(0, 0), color = "#
 }
 
 rectangle = (center, width, height, mass = 1, velocity = Vec2(0, 0), angle = 0, color = "#888") => {
-  shape = {
+  var shape = {
     type: "rectangle",
     center: center,
     width: width,

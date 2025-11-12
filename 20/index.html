@@ -57,7 +57,7 @@ onkeydown = e => {
 
 // Shapes
 circle = (center, radius, mass = 1, friction = 0, restitution = 1, angle = 0, velocity = Vec2(0, 0), color = "#888") => {
-  shape = {
+  var shape = {
     type: "circle",
     center: center,
     radius: radius,
@@ -76,7 +76,7 @@ circle = (center, radius, mass = 1, friction = 0, restitution = 1, angle = 0, ve
 }
 
 rectangle = (center, width, height, mass = 1, friction = 0, restitution = 1, angle = 0, velocity = Vec2(0, 0), color = "#888") => {
-  shape = {
+  var shape = {
     type: "rectangle",
     center: center,
     width: width,

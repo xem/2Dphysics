@@ -71,7 +71,7 @@ circle = (
 
   var inertia = (mass * (radius ** 2)) / 2;
   
-  shape = {
+  var shape = {
     type: "circle",
     center: center,
     radius: radius,
@@ -107,7 +107,7 @@ rectangle = (
 
   var inertia = (mass * ((width ** 2) + (height ** 2))) / 12;
   
-  shape = {
+  var shape = {
     type: "rectangle",
     center: center,
     width: width,
@@ -623,4 +623,5 @@ circle(Vec2(190, 100), 30, 10, 1, .1);
 circle(Vec2(290, 100), 30, 10, .1, .1);
 circle(Vec2(390, 100), 30, 10, .01, .1);
 rectangle(Vec2(500, 100), 100, 50, 10, 1, .1);
+rectangle(Vec2(290, -700), 100, 50, 10, .01, .1);
 </script>

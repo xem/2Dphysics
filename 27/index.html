@@ -22,6 +22,7 @@ rotate = (v, center, angle, x, y) => {
   y = v.y - center.y;
   return Vec2(x * Math.cos(angle) - y * Math.sin(angle) + center.x, x * Math.sin(angle) + y * Math.cos(angle) + center.y);
 }
+cross = (v, w) => v.x * w.y - v.y * w.x;
 
 // Globals
 mx = 0, my = 0;     // mouse x, y
@@ -56,35 +57,74 @@ onkeydown = e => {
 }
 
 // Shapes
-circle = (center, radius, mass = 1, angle = 0, velocity = Vec2(0, 0), color = "#888") => {
+circle = (
+  center,
+  radius,
+  mass = 1,
+  friction = 0,
+  restitution = 1,
+  angle = 0,
+  velocity = Vec2(0, 0),
+  angularVelocity = 0,
+  color = "#888"
+) => {
+
+  var inertia = (mass * (radius ** 2)) / 2;
+  
   var shape = {
     type: "circle",
     center: center,
     radius: radius,
     mass: mass,
-    invMass: 1 / mass,
-    velocity: velocity,
+    invMass: mass == 0 ? 0 : 1 / mass,
+    friction: friction,
+    restitution: restitution,
     angle: angle,
+    velocity: velocity,
+    angularVelocity: angularVelocity,
+    inertia: inertia,
+    invInertia: inertia == 0 ? 0 : 1 / inertia,
     forceAccumulator: Vec2(0, 0),
-    color: color
+    color: color,
+    anchorPoints: []
   };
   
   shapes.push(shape);
   return shape;
 }
 
-rectangle = (center, width, height, mass = 1, velocity = Vec2(0, 0), angle = 0, color = "#888") => {
+rectangle = (
+  center,
+  width,
+  height,
+  mass = 1,
+  friction = 0,
+  restitution = 1,
+  angle = 0,
+  velocity = Vec2(0, 0),
+  angularVelocity = 0,
+  color = "#888"
+) => {
+
+  var inertia = (mass * ((width ** 2) + (height ** 2))) / 12;
+  
   var shape = {
     type: "rectangle",
     center: center,
     width: width,
     height: height,
     mass: mass,
-    invMass: 1 / mass,
-    velocity: velocity,
+    invMass: mass == 0 ? 0 : 1 / mass,
+    friction: friction,
+    restitution: restitution,
     angle: angle,
+    velocity: velocity,
+    angularVelocity: angularVelocity,
+    inertia: inertia,
+    invInertia: inertia == 0 ? 0 : 1 / inertia,
     forceAccumulator: Vec2(0, 0),
     color: color,
+    anchorPoints: [],
 
     // Rectangle vertices
     vertices: [
@@ -107,6 +147,11 @@ rectangle = (center, width, height, mass = 1, velocity = Vec2(0, 0), angle = 0, 
   return shape;
 };
 
+// Add anchor point
+addAnchor = (anchor, shape) => {
+  shape.anchorPoints.push(add(anchor, shape.center));
+}
+
 // Translate a shape
 translateShape = (shape, offset) => {
 
@@ -118,6 +163,11 @@ translateShape = (shape, offset) => {
     for(var i in shape.vertices){
       shape.vertices[i] = add(shape.vertices[i], offset);
     }
+  }
+  
+  // Move anchor points
+  for(var i in shape.anchorPoints){
+    shape.anchorPoints[i] = add(shape.anchorPoints[i], offset);
   }
 }
 
@@ -134,6 +184,11 @@ rotateShape = (shape, angle) => {
     }
     calcNormals(shape);
   }
+  
+  // Rotate anchor points
+  for(var i in shape.anchorPoints){
+    shape.anchorPoints[i] = rotate(shape.anchorPoints[i], shape.center, angle);
+  }
 }
 
 // Shape integration
@@ -141,18 +196,24 @@ integrate = (shape, deltaTime) => {
 
   // compute acceleration
   var acceleration = scale(shape.forceAccumulator, shape.invMass);
-
+  
   // apply acceleration to velocity
   shape.velocity = add(shape.velocity, scale(acceleration, 1));
 
   // apply velocity to position
   translateShape(shape, scale(shape.velocity, 1));
 
+  // apply velocity to position
+  rotateShape(shape, shape.angularVelocity * 1); 
+
   // reset force accumulator
-  shape.forceAccumulator = Vec2(0, 0);
+  shape.forceAccumulator = Vec2(0, 0); 
 
   // velocity damping
-  shape.velocity = scale(shape.velocity, .99);
+  shape.velocity = scale(shape.velocity, .99); 
+
+  // angular velocity damping
+  shape.angularVelocity *= 0.99; 
 }
 
 // Compute the normals of a polygon
@@ -349,6 +410,131 @@ circleVsRectangleCorners = (circle, rectangle) => {
   return null;
 }
 
+// Correct positioning
+positionalCorrection = (shape1, shape2, manifold) => {
+
+  var correction = 0.7;
+  var correctionAmount = manifold.depth / (shape1.invMass + shape2.invMass) * correction;
+  var correctionVector = scale(manifold.normal, correctionAmount);
+  if(shape1.invMass > 0){
+    translateShape(shape1, scale(correctionVector, -shape1.invMass));
+  }
+  if(shape2.invMass > 0){
+    translateShape(shape2, scale(correctionVector, shape2.invMass));
+  }
+}
+
+// Resolve collision
+resolveCollision = (shape1, shape2, manifold) => {
+
+  // If both objects are kinematic, skip
+  if(shape1.invMass == 0 && shape2.invMass == 0) return;
+  
+  // Normal impulse
+
+  // Vectors from each object's center to the contact point
+  var penetrationToCentroidA = sub(manifold.contactPoint, shape1.center);
+  var penetrationToCentroidB = sub(manifold.contactPoint, shape2.center);
+
+  // Linear velocity contribution at the contact point due to angular velocity
+  var angularVelocityPenetrationCentroidA = Vec2(
+    -shape1.angularVelocity * penetrationToCentroidA.y,
+     shape1.angularVelocity * penetrationToCentroidA.x
+  );
+  var angularVelocityPenetrationCentroidB = Vec2(
+    -shape2.angularVelocity * penetrationToCentroidB.y,
+     shape2.angularVelocity * penetrationToCentroidB.x
+  );
+
+  // Total velocity at the contact point = linear + rotational
+  var relativeVelocityA = add(shape1.velocity, angularVelocityPenetrationCentroidA);
+  var relativeVelocityB = add(shape2.velocity, angularVelocityPenetrationCentroidB);
+
+  // Relative velocity between both contact points
+  var relativeVel = sub(relativeVelocityB, relativeVelocityA);
+
+  // Project relative velocity onto the collision normal
+  var velocityInNormal = dot(relativeVel, manifold.normal);
+
+  // If the objects are moving apart (positive relative velocity along the normal), skip
+  if(velocityInNormal > 0) return;
+
+  // Restitution coefficient (bounciness)
+  var e = Math.min(shape1.restitution, shape2.restitution);
+
+  // Compute the "lever arm" cross product (how far from the center the impulse acts)
+  var pToCentroidCrossNormalA = cross(penetrationToCentroidA, manifold.normal);
+  var pToCentroidCrossNormalB = cross(penetrationToCentroidB, manifold.normal);
+
+  // Effective inverse mass including both linear and rotational contributions
+  var invMassSum = shape1.invMass + shape2.invMass;
+  var rigiAInvInertia = shape1.invInertia;
+  var rigiBInvInertia = shape2.invInertia;
+  var crossNSum =
+    pToCentroidCrossNormalA * pToCentroidCrossNormalA * rigiAInvInertia +
+    pToCentroidCrossNormalB * pToCentroidCrossNormalB * rigiBInvInertia;
+
+  // Compute the scalar impulse magnitude (j)
+  var j = -(1 + e) * velocityInNormal;
+  j /= (invMassSum + crossNSum);
+
+  // Convert scalar impulse into a vector along the collision normal
+  var impulseVector = scale(manifold.normal, j);
+
+  // Apply impulse to linear velocities (in opposite directions)
+  shape1.velocity = sub(shape1.velocity, scale(impulseVector, shape1.invMass));
+  shape2.velocity = add(shape2.velocity, scale(impulseVector, shape2.invMass));
+
+  // Apply rotational impulse based on lever arm and inverse inertia
+  shape1.angularVelocity += -pToCentroidCrossNormalA * j * rigiAInvInertia;
+  shape2.angularVelocity +=  pToCentroidCrossNormalB * j * rigiBInvInertia;
+
+  // Frictional impulse
+
+  // Compute the component of the relative velocity along the collision normal
+  var velocityInNormalDirection = scale(manifold.normal, dot(relativeVel, manifold.normal));
+
+  // Subtract that from the total relative velocity to get the tangential direction
+  var tangent = sub(relativeVel, velocityInNormalDirection);
+
+  // Reverse tangent direction (optional, depending on sign convention)
+  tangent = scale(tangent, -1);
+
+  // Use the smallest friction coefficient between the two shapes
+  var minFriction = Math.min(shape1.friction, shape2.friction);
+
+  // Compute lever arms (distance vectors crossed with tangent direction)
+  // Used to determine rotational influence for each body
+  var pToCentroidCrossTangentA = cross(penetrationToCentroidA, tangent);
+  var pToCentroidCrossTangentB = cross(penetrationToCentroidB, tangent);
+
+  // Effective inverse mass for the tangential direction (accounts for rotation)
+  var crossSumTangent =
+    pToCentroidCrossTangentA * pToCentroidCrossTangentA * rigiAInvInertia +
+    pToCentroidCrossTangentB * pToCentroidCrossTangentB * rigiBInvInertia;
+
+  // Compute the tangential (frictional) impulse magnitude
+  // This resists sliding motion along the tangent direction
+  var frictionalImpulse = -(1 + e) * dot(relativeVel, tangent) * minFriction;
+
+  // Divide by total effective mass (linear + rotational)
+  frictionalImpulse /= (invMassSum + crossSumTangent);
+
+  // Limit frictional impulse so it doesn’t exceed the normal impulse
+  if(frictionalImpulse > j){ frictionalImpulse = j; }
+
+  // Convert scalar friction impulse into a vector along the tangent
+  var frictionalImpulseVector = scale(tangent, frictionalImpulse);
+
+  // Apply friction impulse to linear velocities of both bodies
+  shape1.velocity = sub(shape1.velocity, scale(frictionalImpulseVector, shape1.invMass));
+  shape2.velocity = add(shape2.velocity, scale(frictionalImpulseVector, shape2.invMass));    
+
+  // Apply angular (rotational) impulse due to friction
+  shape1.angularVelocity += -pToCentroidCrossTangentA * frictionalImpulse * rigiAInvInertia;    
+  shape2.angularVelocity +=  pToCentroidCrossTangentB * frictionalImpulse * rigiBInvInertia;
+}
+
 // Debug
 drawPoint = (center, radius = 5, color = "#888") => {
   c.beginPath();
@@ -371,7 +557,7 @@ drawLine = (start, end, color = "#888") => {
 // Update the physics engine
 update = () => {
 
-  var push, manifold, circle, rectangle;
+  var push, manifold, shape1, shape2, direction, distance;
   
   // Reset manifolds
   manifolds = [];
@@ -381,20 +567,66 @@ update = () => {
     i.color = "#888";
   }
   
-  // Ball update
-  for(i of shapes){
+  // Apply gravity
+  for(var i of shapes){
+    i.forceAccumulator = add(i.forceAccumulator, scale(gravity, i.mass));
+  }
   
-    // Apply gravity
-    i.forceAccumulator = add(i.forceAccumulator, gravity);
-    
-    // Integration
-    integrate(i, deltaTime);
+  // Consider all pairs of shapes
+  for(var i = 0; i < shapes.length; i++){
+    for(var j = i; j < shapes.length; j++){
+      if(i != j){
+      
+        shape1 = shapes[i];
+        shape2 = shapes[j];
 
-    // Bouncing (temp)
-    if(i.center.y > 300){
-      i.center.y = 300;
-      i.velocity = scale(i.velocity, -1);
+        // Reset manifold
+        manifold = null;
+        
+        // Detect circle-circle collisions
+        if(shape1.type == "circle" && shape2.type == "circle"){
+          direction = sub(shape2.center, shape1.center);
+          distance = dist(shape1.center, shape2.center);
+          if(distance < (shape1.radius + shape2.radius)){
+            manifold = {
+              depth: (shape1.radius + shape2.radius) - distance,
+              normal: normalize(direction),
+              contactPoint: add(shape1.center, scale(normalize(direction), shape1.radius))
+            };
+          }
+        }
+      
+        // Detect rectangle-rectangle collisions
+        else if(shape1.type == "rectangle" && shape2.type == "rectangle"){
+          manifold = rectangleRectangleCollision(shape1, shape2);
+        }
+
+        // Detect circle-rectangle collisions
+        else if(shape1.type == "rectangle" && shape2.type == "circle"){
+          [shape1, shape2] = [shape2, shape1];
+          manifold = circleRectangleCollision(shape1, shape2);
+        }
+        
+        else if(shape1.type == "circle" && shape2.type == "rectangle"){
+          manifold = circleRectangleCollision(shape1, shape2);
+        }
+        
+        // Collision response
+        if(manifold){
+          circle.color = "red";
+          rectangle.color = "red";
+          push = scale(manifold.normal, manifold.depth * 0.5);
+          positionalCorrection(shape1, shape2, manifold);
+          resolveCollision(shape1, shape2, manifold);
+          manifolds.push(manifold);
+        }
+      }
     }
+  }
+  
+  // Integration
+  for(i of shapes){
+    integrate(i, deltaTime);
   }
 }
 
@@ -432,6 +664,11 @@ draw = () => {
     }
 
     c.restore();
+    
+    // Debug: draw anchor points
+    for(var j of i.anchorPoints){
+      drawPoint(j, 5, "green");
+    }
   }
 
   // Debug: draw manifolds
@@ -448,6 +685,12 @@ setInterval(() => {
 }, 16);
 
 // Demo
-c1 = circle(Vec2(100, 100), 20);
-
+rectangle(Vec2(350, 350), 300, 20, 0, 0.5, .9, 0.2);
+circle(Vec2(190, 100), 30, 10, 1, .1);
+c1 = circle(Vec2(290, 100), 30, 10, .1, .1);
+circle(Vec2(390, 100), 30, 10, .01, .1);
+rectangle(Vec2(500, 100), 100, 50, 10, 1, .1);
+r1 = rectangle(Vec2(290, -700), 100, 50, 10, .01, .1);
+addAnchor(Vec2(15, 15), c1);
+addAnchor(Vec2(-30, 15), r1);
 </script>

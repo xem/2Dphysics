@@ -71,7 +71,7 @@ circle = (
 
   var inertia = (mass * (radius ** 2)) / 2;
   
-  shape = {
+  var shape = {
     type: "circle",
     center: center,
     radius: radius,
@@ -107,7 +107,7 @@ rectangle = (
 
   var inertia = (mass * ((width ** 2) + (height ** 2))) / 12;
   
-  shape = {
+  var shape = {
     type: "rectangle",
     center: center,
     width: width,
@@ -486,12 +486,6 @@ resolveCollision = (shape1, shape2, manifold) => {
   // Use the smallest friction coefficient between the two shapes
   var minFriction = Math.min(shape1.friction, shape2.friction);
 
-  // (Debug) If tangent has positive components, normalize and draw it
-  if(tangent.x > 0 || tangent.y > 0){
-    tangent = normalize(tangent);    
-    drawLine(shape1.center, add(shape1.center, scale(tangent, 40)));
-  }
-
   // Compute lever arms (distance vectors crossed with tangent direction)
   // Used to determine rotational influence for each body
   var pToCentroidCrossTangentA = cross(penetrationToCentroidA, tangent);
@@ -674,4 +668,5 @@ circle(Vec2(190, 100), 30, 10, 1, .1);
 circle(Vec2(290, 100), 30, 10, .1, .1);
 circle(Vec2(390, 100), 30, 10, .01, .1);
 rectangle(Vec2(500, 100), 100, 50, 10, 1, .1);
+rectangle(Vec2(290, -700), 100, 50, 10, .01, .1);
 </script>
