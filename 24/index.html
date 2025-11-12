@@ -175,13 +175,27 @@ rotateShape = (shape, angle) => {
 
 // Shape integration
 integrate = (shape, deltaTime) => {
-  var acceleration = scale(shape.forceAccumulator, shape.invMass); // compute acceleration
-  shape.velocity = add(shape.velocity, scale(acceleration, 1)); // apply acceleration to velocity
-  translateShape(shape, scale(shape.velocity, 1)); // apply velocity to position
-  rotateShape(shape, shape.angularVelocity * 1); // apply velocity to position
-  shape.forceAccumulator = Vec2(0, 0); // reset force accumulator
-  shape.velocity = scale(shape.velocity, .99); // velocity damping
-  shape.angularVelocity *= 0.99; // angular velocity damping
+
+  // compute acceleration
+  var acceleration = scale(shape.forceAccumulator, shape.invMass);
+  
+  // apply acceleration to velocity
+  shape.velocity = add(shape.velocity, scale(acceleration, 1));
+
+  // apply velocity to position
+  translateShape(shape, scale(shape.velocity, 1));
+
+  // apply velocity to position
+  rotateShape(shape, shape.angularVelocity * 1); 
+
+  // reset force accumulator
+  shape.forceAccumulator = Vec2(0, 0); 
+
+  // velocity damping
+  shape.velocity = scale(shape.velocity, .99); 
+
+  // angular velocity damping
+  shape.angularVelocity *= 0.99; 
 }
 
 // Compute the normals of a polygon
@@ -194,6 +208,7 @@ calcNormals = shape => {
 
 // SAT: test two rectangles against each other's axis and choose the minimal penetration depth
 rectangleRectangleCollision = (r1, r2) => {
+
   var contact = null;
   
   // Check all axes from rectangle A against rectangle B
@@ -220,6 +235,7 @@ rectangleRectangleCollision = (r1, r2) => {
 
 // SAT: Test all normals of rectangle 1 as potential separating axes
 getContactPoint = (r1, r2) => {
+
   var contact = null;
   var minDepth = Number.MAX_VALUE;
   var supportPoint = null;
@@ -250,6 +266,7 @@ getContactPoint = (r1, r2) => {
 
 // SAT: Find which vertex from the other rectangle penetrates the deepest along a given axis
 findSupportPoint = (normalOnEdge, pointOnEdge, otherPolygonVertices) => {
+
   var maxDepth = 0;
   var supportPoint = null;
   var depth = null;
@@ -276,6 +293,7 @@ findSupportPoint = (normalOnEdge, pointOnEdge, otherPolygonVertices) => {
 
 // Detect collision between a circle and a rectangle
 circleRectangleCollision = (circle, rectangle) => {
+
   // First, try to detect a collision between the circle and the rectangle's edges
   var contact = circleVsRectangleEdges(circle, rectangle);
 
@@ -290,6 +308,7 @@ circleRectangleCollision = (circle, rectangle) => {
 
 // Test collision between a circle and the edges of a rectangle
 circleVsRectangleEdges = (circle, rectangle) => {
+
   var nearestEdgeVertex = null;
   var nearestEdgeNormal = null;
   var dirToNext, circleDirToNextProjection, circleDirToNormalProjection;
@@ -346,6 +365,7 @@ circleVsRectangleEdges = (circle, rectangle) => {
 
 // Test collision between a circle and the corners of a rectangle
 circleVsRectangleCorners = (circle, rectangle) => {
+
   var dirToCircleCenter;
 
   // Loop over all rectangle vertices
@@ -374,6 +394,7 @@ circleVsRectangleCorners = (circle, rectangle) => {
 
 // Correct positioning
 positionalCorrection = (shape1, shape2, manifold) => {
+
   var correction = 0.7;
   var correctionAmount = manifold.depth / (shape1.invMass + shape2.invMass) * correction;
   var correctionVector = scale(manifold.normal, correctionAmount);
@@ -387,6 +408,7 @@ positionalCorrection = (shape1, shape2, manifold) => {
 
 // Resolve collision
 resolveCollision = (shape1, shape2, manifold) => {
+
   var relativeVelocityAlongNormal = dot(sub(shape2.velocity, shape1.velocity), manifold.normal);
   if(relativeVelocityAlongNormal > 0) return; // shapes are already going away from each other
   if(shape1.invMass == 0 && shape2.invMass == 0) return; // both shapes are kinematic
