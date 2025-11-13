@@ -27,6 +27,9 @@ cross = (v, w) => v.x * w.y - v.y * w.x;
 // Globals
 mx = 0, my = 0;     // mouse x, y
 mlb = 0, mrb = 0;   // mouse left and right button
+selectedRigidBody = null;
+selectedPosition = null;
+selectedAnchorId = null;
 shapes = [];
 manifolds = [];
 deltaTime = 1;
@@ -85,6 +88,7 @@ circle = (
     inertia: inertia,
     invInertia: inertia == 0 ? 0 : 1 / inertia,
     forceAccumulator: Vec2(0, 0),
+    torqueAccumulator: 0,
     color: color,
     anchorPoints: []
   };
@@ -123,6 +127,7 @@ rectangle = (
     inertia: inertia,
     invInertia: inertia == 0 ? 0 : 1 / inertia,
     forceAccumulator: Vec2(0, 0),
+    torqueAccumulator: 0,
     color: color,
     anchorPoints: [],
 
@@ -147,9 +152,40 @@ rectangle = (
   return shape;
 };
 
+// Is point inside a shape
+isPointInside = (point, shape) => {
+
+  // Circle
+  if(shape.type == "circle"){
+		var distanceToCenter = len(sub(shape.center, point));	
+		return shape.radius > distanceToCenter;
+	}
+  
+  // Rectangle
+  else {
+    var isInside = false;
+		for(var i = 0; i < shape.vertices.length; i++){
+			var vertex = shape.vertices[i];
+			var normal = shape.normals[i];
+			var vertToPoint = sub(point, vertex);
+			var d = dot(vertToPoint, normal);
+			if(d > 0) return false;
+			else isInside = true;
+		}
+		return isInside;
+  }
+}
+
 // Add anchor point (local coordinates)
 addAnchor = (anchor, shape) => {
   shape.anchorPoints.push(add(anchor, shape.center));
+}
+
+// Add force on a point (world coordinates)
+addForceAtPoint = (point, shape, force) => {
+  var direction = sub(point, shape.center);
+  shape.forceAccumulator = add(shape.forceAccumulator, force);
+  shape.torqueAccumulator += cross(direction, force);
 }
 
 // Translate a shape
@@ -194,26 +230,33 @@ rotateShape = (shape, angle) => {
 // Shape integration
 integrate = (shape, deltaTime) => {
 
-  // compute acceleration
+  // compute acceleration and rotational acceleration
   var acceleration = scale(shape.forceAccumulator, shape.invMass);
+  var rotationalAcceleration = shape.torqueAccumulator * shape.invInertia;
   
   // apply acceleration to velocity
   shape.velocity = add(shape.velocity, scale(acceleration, 1));
 
   // apply velocity to position
   translateShape(shape, scale(shape.velocity, 1));
+  
+  // apply rotational acceleration to angular velocity
+  shape.angularVelocity += rotationalAcceleration * 1;
 
-  // apply velocity to position
+  // apply angular velocity to angle
   rotateShape(shape, shape.angularVelocity * 1); 
-
-  // reset force accumulator
-  shape.forceAccumulator = Vec2(0, 0); 
 
   // velocity damping
   shape.velocity = scale(shape.velocity, .99); 
 
   // angular velocity damping
   shape.angularVelocity *= 0.99; 
+
+  // reset force accumulator
+  shape.forceAccumulator = Vec2(0, 0); 
+  
+  // reset torque accumulator
+  shape.torqueAccumulator = 0;
 }
 
 // Compute the normals of a polygon
@@ -554,6 +597,42 @@ drawLine = (start, end, color = "#888") => {
   c.closePath();
 }
 
+// Mouse interactions
+handleMouseObjectInteraction = () => {
+  var mousePos = Vec2(mx, my);
+
+  // Left button pressed
+  if(mlb){
+    for(var i = 0; i < shapes.length; i++){
+      var mouseInside = isPointInside(mousePos, shapes[i]);
+      if(mouseInside && selectedRigidBody == null){
+        selectedRigidBody = shapes[i];
+        selectedPosition = copy(mousePos);
+        var localPos = sub(mousePos, shapes[i].center);
+        addAnchor(localPos, shapes[i]);
+        selectedAnchorId = shapes[i].anchorPoints.length - 1;
+      }
+    }
+  }
+  
+  // Left button released
+  else {
+    if(selectedRigidBody != null){
+      selectedRigidBody.anchorPoints.pop();
+      selectedRigidBody = null;
+    }
+    selectedAnchorId = null;
+    selectedPosition = null;
+  }
+  
+  // Apply force
+  if(selectedRigidBody && selectedPosition){
+    var start = selectedRigidBody.anchorPoints[selectedAnchorId];
+    var force = sub(mousePos, start);
+    addForceAtPoint(start, selectedRigidBody, scale(force, 0.01));			
+  }
+}
+
 // Update the physics engine
 update = () => {
 
@@ -628,6 +707,9 @@ update = () => {
   for(i of shapes){
     integrate(i, deltaTime);
   }
+  
+  // Mouse interactions
+  handleMouseObjectInteraction();
 }
 
 // Render the scene
@@ -685,12 +767,10 @@ setInterval(() => {
 }, 16);
 
 // Demo
-rectangle(Vec2(350, 350), 300, 20, 0, 0.5, .9, 0.2);
+rectangle(Vec2(350, 350), 400, 20, 0, 0.5, .9);
 circle(Vec2(190, 100), 30, 10, 1, .1);
 c1 = circle(Vec2(290, 100), 30, 10, .1, .1);
 circle(Vec2(390, 100), 30, 10, .01, .1);
 rectangle(Vec2(500, 100), 100, 50, 10, 1, .1);
 r1 = rectangle(Vec2(290, -700), 100, 50, 10, .01, .1);
-addAnchor(Vec2(15, 15), c1);
-addAnchor(Vec2(-30, 15), r1);
 </script>

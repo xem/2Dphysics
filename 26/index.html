@@ -186,7 +186,7 @@ integrate = (shape, deltaTime) => {
   // apply velocity to position
   translateShape(shape, scale(shape.velocity, 1));
 
-  // apply velocity to position
+  // apply angular velocity to angle
   rotateShape(shape, shape.angularVelocity * 1); 
 
   // reset force accumulator
@@ -596,8 +596,8 @@ update = () => {
         
         // Collision response
         if(manifold){
-          shape1.color = "red";
-          shape2.color = "red";
+          //shape1.color = "red";
+          //shape2.color = "red";
           push = scale(manifold.normal, manifold.depth * 0.5);
           positionalCorrection(shape1, shape2, manifold);
           resolveCollision(shape1, shape2, manifold);
