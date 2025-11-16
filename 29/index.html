@@ -31,6 +31,7 @@ selectedRigidBody = null;
 selectedPosition = null;
 selectedAnchorId = null;
 shapes = [];
+joints = [];
 manifolds = [];
 deltaTime = 1;
 gravity = Vec2(0, 0.1);
@@ -613,8 +614,7 @@ handleMouseObjectInteraction = () => {
         selectedRigidBody = shapes[i];
         selectedPosition = copy(mousePos);
         var localPos = sub(mousePos, shapes[i].center);
-        addAnchor(localPos, shapes[i]);
-        selectedAnchorId = shapes[i].anchorPoints.length - 1;
+        selectedAnchorId = addAnchor(localPos, shapes[i]);
       }
     }
   }
@@ -714,6 +714,9 @@ update = () => {
   
   // Mouse interactions
   handleMouseObjectInteraction();
+  
+  // joints
+  handleJoints();
 }
 
 // Render the scene
@@ -762,6 +765,49 @@ draw = () => {
     drawPoint(i.contactPoint, 5, "#04F");
     drawLine(i.contactPoint, add(i.contactPoint, scale(i.normal, 50)), "#04F");
   }
+  
+  // Debug: draw joints
+  for(var i of joints){
+    drawLine(i.rigiA.anchorPoints[i.anchorA], i.rigiB.anchorPoints[i.anchorB], "orange");
+  }
+}
+
+// Joints
+
+// Force joint
+forceJoint = (rigiA, anchorA, rigiB, anchorB, strength) => {
+	var joint = {
+    type: "force",
+    rigiA: rigiA,
+		anchorA: anchorA,
+		rigiB: rigiB,
+		anchorB: anchorB,
+    strength: strength
+	};
+  
+  joints.push(joint);
+  return joint;
+}
+
+// Joint handler
+handleJoints = () => {
+  for(var i = 0; i < joints.length; i++){
+    
+    var joint = joints[i];
+  
+    if(joint.type == "force"){
+      
+      // Update connection A
+      var anchorAPos = joint.rigiA.anchorPoints[joint.anchorA];
+      var anchorBPos = joint.rigiB.anchorPoints[joint.anchorB];
+      var direction = sub(anchorBPos, anchorAPos);
+      addForceAtPoint(anchorBPos, joint.rigiA, scale(direction, joint.strength / 2));
+      
+      // Update connection b
+      direction = sub(anchorAPos, anchorBPos);
+      addForceAtPoint(anchorAPos, joint.rigiB, scale(direction, joint.strength / 2));
+    }
+  }
 }
 
 // Main loop
@@ -771,10 +817,10 @@ setInterval(() => {
 }, 16);
 
 // Demo
-rectangle(Vec2(350, 350), 400, 20, 0, 0.5, .9);
-circle(Vec2(190, 100), 30, 10, 1, .1);
-c1 = circle(Vec2(290, 100), 30, 10, .1, .1);
-circle(Vec2(390, 100), 30, 10, .01, .1);
-rectangle(Vec2(500, 100), 100, 50, 10, 1, .1);
-r1 = rectangle(Vec2(290, -700), 100, 50, 10, .01, .1);
+rectangle(Vec2(350, 550), 500, 20, 0, 0.5, .9);
+r1 = rectangle(Vec2(200, 200), 200, 100, 100);
+a1 = addAnchor(Vec2(50,25), r1);
+c1 = circle(Vec2(500, 100), 60, 100);
+a2 = addAnchor(Vec2(-60,0), c1);
+j1 = forceJoint(r1, a1, c1, a2, .1);
 </script>

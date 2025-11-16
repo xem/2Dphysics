@@ -147,9 +147,12 @@ rectangle = (
   return shape;
 };
 
-// Add anchor point (local coordinates)
+// Add anchor point
+// (anchor is in local coordinates)
 addAnchor = (anchor, shape) => {
-  shape.anchorPoints.push(add(anchor, shape.center));
+  var anchor = add(anchor, shape.center);
+  shape.anchorPoints.push(anchor);
+  return shape.anchorPoints.length - 1;
 }
 
 // Translate a shape
