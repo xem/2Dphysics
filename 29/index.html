@@ -794,18 +794,19 @@ handleJoints = () => {
   for(var i = 0; i < joints.length; i++){
     
     var joint = joints[i];
+    var forceHalving = (joint.rigiA.invMass == 0 || joint.rigiB.invMass == 0) ? 1 : 0.5;
+    var anchorAPos = joint.rigiA.anchorPoints[joint.anchorA];
+    var anchorBPos = joint.rigiB.anchorPoints[joint.anchorB];
+    var direction = sub(anchorBPos, anchorAPos);
   
     // Force joint
     if(joint.type == "force"){
       
       // Update connection A
-      var anchorAPos = joint.rigiA.anchorPoints[joint.anchorA];
-      var anchorBPos = joint.rigiB.anchorPoints[joint.anchorB];
-      var direction = sub(anchorBPos, anchorAPos);
-      addForceAtPoint(anchorBPos, joint.rigiA, scale(direction, joint.strength / 2));
+      addForceAtPoint(anchorBPos, joint.rigiA, scale(direction, joint.strength * forceHalving));
       
       // Update connection B
-      addForceAtPoint(anchorAPos, joint.rigiB, scale(direction, -joint.strength / 2));
+      addForceAtPoint(anchorAPos, joint.rigiB, scale(direction, -joint.strength * forceHalving));
     }
   }
 }

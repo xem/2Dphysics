@@ -805,6 +805,22 @@ springJoint = (rigiA, anchorA, rigiB, anchorB, stiffness, restLength) => {
   return joint;
 }
 
+// Reverse force joint
+reverseForceJoint = (rigiA, anchorA, rigiB, anchorB, strength, maxEffectDistance) => {
+  var joint = {
+    type: "reverseForce",
+    rigiA: rigiA,
+		anchorA: anchorA,
+		rigiB: rigiB,
+		anchorB: anchorB,
+    strength: strength,
+    maxEffectDistance: maxEffectDistance
+	};
+  
+  joints.push(joint);
+  return joint;
+}
+
 // Joint handler
 handleJoints = () => {
   for(var i = 0; i < joints.length; i++){
@@ -820,15 +836,15 @@ handleJoints = () => {
     if(joint.type == "force"){
       
       // Update connection A
-      addForceAtPoint(anchorBPos, joint.rigiA, scale(direction, joint.strength * forceHalving));
+      addForceAtPoint(anchorBPos, joint.rigiA, scale(direction, joint.strength / 2));
       
       // Update connection B
-      addForceAtPoint(anchorAPos, joint.rigiB, scale(direction, -joint.strength * forceHalving));
+      addForceAtPoint(anchorAPos, joint.rigiB, scale(direction, -joint.strength / 2));
     }
     
     // Spring joint
     else if(joint.type == "spring"){
-
+    
       var restDistance = distance - joint.restLength;
       var forceMagnitude = restDistance * joint.restLength * joint.stiffness * forceHalving;
       var force = scale(normalize(direction), forceMagnitude);
@@ -843,6 +859,22 @@ handleJoints = () => {
         addForceAtPoint(anchorBPos, joint.rigiB, scale(force, -1));	
       }
     }
+    
+    // Reverse force joint
+    else if(joint.type == "reverseForce"){
+
+      var forceMagnitude = Math.max(0, joint.maxEffectDistance - distance);
+
+      // Update connection A
+      if(joint.rigiA.invMass != 0){
+        addForceAtPoint(anchorBPos, joint.rigiA, scale(normalize(direction), -forceMagnitude * joint.strength * forceHalving));
+      }
+
+      // Update connection B
+      if(joint.rigiB.invMass != 0){
+        addForceAtPoint(anchorAPos, joint.rigiB, scale(normalize(direction), forceMagnitude * joint.strength * forceHalving));	
+      }
+    }
   }
 }
 
@@ -853,10 +885,10 @@ setInterval(() => {
 }, 16);
 
 // Demo
-rectangle(Vec2(350, 550), 500, 20, 0, 0.5, .9);
+rectangle(Vec2(350, 350), 500, 20, 0, 0.5, .9);
 r1 = rectangle(Vec2(200, 200), 200, 100, 0);
 a1 = addAnchor(Vec2(50,25), r1);
-c1 = circle(Vec2(500, 100), 60, 100);
+c1 = circle(Vec2(400, 100), 60, 100);
 a2 = addAnchor(Vec2(-60,0), c1);
-j1 = springJoint(r1, a1, c1, a2, .005, 50);
+j1 = reverseForceJoint(r1, a1, c1, a2, .05, 200);
 </script>
