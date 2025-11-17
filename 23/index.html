@@ -28,7 +28,6 @@ mx = 0, my = 0;     // mouse x, y
 mlb = 0, mrb = 0;   // mouse left and right button
 shapes = [];
 manifolds = [];
-deltaTime = 1;
 gravity = Vec2(0, 0.1);
 
 // Event listeners
@@ -142,7 +141,7 @@ rotateShape = (shape, angle) => {
 }
 
 // Shape integration
-integrate = (shape, deltaTime) => {
+integrate = (shape) => {
 
   // compute acceleration
   var acceleration = scale(shape.forceAccumulator, shape.invMass);
@@ -474,7 +473,7 @@ update = () => {
   
   // Integration
   for(i of shapes){
-    integrate(i, deltaTime);
+    integrate(i);
   }
 }
 
