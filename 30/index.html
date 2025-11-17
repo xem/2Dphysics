@@ -789,23 +789,59 @@ forceJoint = (rigiA, anchorA, rigiB, anchorB, strength) => {
   return joint;
 }
 
+// Spring joint
+springJoint = (rigiA, anchorA, rigiB, anchorB, stiffness, restLength) => {
+  var joint = {
+    type: "spring",
+    rigiA: rigiA,
+		anchorA: anchorA,
+		rigiB: rigiB,
+		anchorB: anchorB,
+    stiffness: stiffness,
+    restLength: restLength
+	};
+  
+  joints.push(joint);
+  return joint;
+}
+
 // Joint handler
 handleJoints = () => {
   for(var i = 0; i < joints.length; i++){
     
     var joint = joints[i];
+    var anchorAPos = joint.rigiA.anchorPoints[joint.anchorA];
+    var anchorBPos = joint.rigiB.anchorPoints[joint.anchorB];
+    var direction = sub(anchorBPos, anchorAPos);
+    var distance = len(direction);
   
     // Force joint
     if(joint.type == "force"){
       
       // Update connection A
-      var anchorAPos = joint.rigiA.anchorPoints[joint.anchorA];
-      var anchorBPos = joint.rigiB.anchorPoints[joint.anchorB];
-      var direction = sub(anchorBPos, anchorAPos);
       addForceAtPoint(anchorBPos, joint.rigiA, scale(direction, joint.strength / 2));
       
       // Update connection B
       addForceAtPoint(anchorAPos, joint.rigiB, scale(direction, -joint.strength / 2));
+    }
+    
+    // Spring joint
+    else if(joint.type == "spring"){
+    
+      var forceHalving = (joint.rigiA.invMass == 0 || joint.rigiB.invMass == 0) ? 1 : 0.5;
+      var restDistance = distance - joint.restLength;
+      var forceMagnitude = restDistance * joint.restLength * joint.stiffness * forceHalving;
+      var force = scale(normalize(direction), forceMagnitude);
+    
+      // Update connection A
+      if(joint.rigiA.invMass != 0){
+        addForceAtPoint(anchorAPos, joint.rigiA, force);
+      }
+
+      // Update connection B
+      if(joint.rigiB.invMass != 0){
+        addForceAtPoint(anchorBPos, joint.rigiB, scale(force, -1));	
+      }
     }
   }
 }
@@ -818,9 +854,9 @@ setInterval(() => {
 
 // Demo
 rectangle(Vec2(350, 550), 500, 20, 0, 0.5, .9);
-r1 = rectangle(Vec2(200, 200), 200, 100, 100);
+r1 = rectangle(Vec2(200, 200), 200, 100, 0);
 a1 = addAnchor(Vec2(50,25), r1);
 c1 = circle(Vec2(500, 100), 60, 100);
 a2 = addAnchor(Vec2(-60,0), c1);
-j1 = forceJoint(r1, a1, c1, a2, .1);
+j1 = springJoint(r1, a1, c1, a2, .005, 50);
 </script>
