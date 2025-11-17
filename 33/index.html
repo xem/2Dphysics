@@ -91,7 +91,8 @@ circle = (
     forceAccumulator: Vec2(0, 0),
     torqueAccumulator: 0,
     color: color,
-    anchorPoints: []
+    anchorPoints: [],
+    fixed: [],
   };
   
   shapes.push(shape);
@@ -131,6 +132,7 @@ rectangle = (
     torqueAccumulator: 0,
     color: color,
     anchorPoints: [],
+    fixed: [],
 
     // Rectangle vertices
     vertices: [
@@ -640,28 +642,26 @@ handleMouseObjectInteraction = () => {
 // Update the physics engine
 update = () => {
 
-  var push, manifold, shape1, shape2, direction, distance;
+  var push, manifold, shape1, shape2, direction, distance, i, j;
   
   // Reset manifolds
   manifolds = [];
   
-  // Reset shapes colors
-  for(var i of shapes){
+  // Reset shapes colors, apply gravity
+  for(i of shapes){
     i.color = "#888";
-  }
-  
-  // Apply gravity
-  for(var i of shapes){
     i.forceAccumulator = add(i.forceAccumulator, scale(gravity, i.mass));
   }
   
   // Consider all pairs of shapes
-  for(var i = 0; i < shapes.length; i++){
-    for(var j = i; j < shapes.length; j++){
-      if(i != j){
+  for(i = 0; i < shapes.length; i++){
+    for(j = i; j < shapes.length; j++){
       
-        shape1 = shapes[i];
-        shape2 = shapes[j];
+      shape1 = shapes[i];
+      shape2 = shapes[j];
+    
+      // Ignore self-collisions, pairs of fixed shapes and collisions in fixed joints
+      if(i != j && !(shape1.invMass == 0 && shape2.invMass == 0) && !shape1.fixed.includes(j)){
 
         // Reset manifold
         manifold = null;
@@ -706,6 +706,9 @@ update = () => {
       }
     }
   }
+
+  // Joints (must be enforced before integration)
+  handleJoints();
   
   // Integration
   for(i of shapes){
@@ -714,9 +717,6 @@ update = () => {
   
   // Mouse interactions
   handleMouseObjectInteraction();
-  
-  // Joints
-  handleJoints();
 }
 
 // Render the scene
@@ -763,7 +763,7 @@ draw = () => {
   // Debug: draw manifolds
   for(var i of manifolds){
     drawPoint(i.contactPoint, 5, "#04F");
-    drawLine(i.contactPoint, add(i.contactPoint, scale(i.normal, 50)), "#04F");
+    //drawLine(i.contactPoint, add(i.contactPoint, scale(i.normal, 50)), "#04F");
   }
   
   // Debug: draw joints
@@ -821,16 +821,56 @@ reverseForceJoint = (rigiA, anchorA, rigiB, anchorB, strength, maxEffectDistance
   return joint;
 }
 
+// Fixed joint
+fixedJoint = (rigiA, anchorA, rigiB, anchorB, iterations = 20) => {
+  var joint = {
+    type: "fixed",
+    rigiA: rigiA,
+		anchorA: anchorA,
+		rigiB: rigiB,
+		anchorB: anchorB,
+    iterations: iterations,
+    rigiABounce: rigiA.restitution,
+		rigiBBounce: rigiB.restitution,
+		rigiAFriction: rigiA.friction,
+		rigiBFriction: rigiB.friction,
+    initialLength: len(sub(rigiA.anchorPoints[anchorA], rigiB.anchorPoints[anchorB])),
+    relativeAngle: rigiB.angle - rigiA.angle
+	};
+  
+  rigiA.fixed.push(shapes.indexOf(rigiB));
+  rigiB.fixed.push(shapes.indexOf(rigiA));
+  joints.push(joint);
+  return joint;
+}
+
+restoreMaterial = joint => {
+  joint.rigiA.restitution = joint.rigiABounce;
+  joint.rigiA.friction = joint.rigiAFriction;
+  joint.rigiB.restitution = joint.rigiBBounce;
+  joint.rigiB.friction = joint.rigiBFriction;
+}
+
+setMaterialZero = joint => {
+  joint.rigiA.restitution = 0;
+  joint.rigiA.friction = 0;
+  joint.rigiB.restitution = 0;
+  joint.rigiB.friction = 0;
+}
+
 // Joint handler
 handleJoints = () => {
-  for(var i = 0; i < joints.length; i++){
+
+  var joint, forceHalving, anchorAPos, anchorBPos, direction, distance, restDistance, forceMagnitude, force, normal, contact, currentOrientationDiff, fixedOrientationVel, angleError, stiffness, avgAngVel, i, j;
+  
+  for(i = 0; i < joints.length; i++){
     
-    var joint = joints[i];
-    var forceHalving = (joint.rigiA.invMass == 0 || joint.rigiB.invMass == 0) ? 1 : 0.5;
-    var anchorAPos = joint.rigiA.anchorPoints[joint.anchorA];
-    var anchorBPos = joint.rigiB.anchorPoints[joint.anchorB];
-    var direction = sub(anchorBPos, anchorAPos);
-    var distance = len(direction);
+    joint = joints[i];
+    forceHalving = (joint.rigiA.invMass == 0 || joint.rigiB.invMass == 0) ? 1 : 0.5;
+    anchorAPos = joint.rigiA.anchorPoints[joint.anchorA];
+    anchorBPos = joint.rigiB.anchorPoints[joint.anchorB];
+    direction = sub(anchorBPos, anchorAPos);
+    distance = len(direction);
   
     // Force joint
     if(joint.type == "force"){
@@ -845,50 +885,10 @@ handleJoints = () => {
     // Spring joint
     else if(joint.type == "spring"){
     
-      var restDistance = distance - joint.restLength;
-      var forceMagnitude = restDistance * joint.restLength * joint.stiffness * forceHalving;
-      var force = scale(normalize(direction), forceMagnitude);
+      restDistance = distance - joint.restLength;
+      forceMagnitude = restDistance * joint.restLength * joint.stiffness * forceHalving;
+      force = scale(normalize(direction), forceMagnitude);
     
       // Update connection A
       if(joint.rigiA.invMass != 0){
         addForceAtPoint(anchorAPos, joint.rigiA, force);
-      }
-
-      // Update connection B
-      if(joint.rigiB.invMass != 0){
-        addForceAtPoint(anchorBPos, joint.rigiB, scale(force, -1));	
-      }
-    }
-    
-    // Reverse force joint
-    else if(joint.type == "reverseForce"){
-
-      var forceMagnitude = Math.max(0, joint.maxEffectDistance - distance);
-
-      // Update connection A
-      if(joint.rigiA.invMass != 0){
-        addForceAtPoint(anchorBPos, joint.rigiA, scale(normalize(direction), -forceMagnitude * joint.strength * forceHalving));
-      }
-
-      // Update connection B
-      if(joint.rigiB.invMass != 0){
-        addForceAtPoint(anchorAPos, joint.rigiB, scale(normalize(direction), forceMagnitude * joint.strength * forceHalving));	
-      }
-    }
-  }
-}
-
-// Main loop
-setInterval(() => {
-  update();
-  draw();
-}, 16);
-
-// Demo
-rectangle(Vec2(350, 350), 500, 20, 0, 0.5, .9);
-r1 = rectangle(Vec2(200, 200), 200, 100, 0);
-a1 = addAnchor(Vec2(50,25), r1);
-c1 = circle(Vec2(400, 100), 60, 100);
-a2 = addAnchor(Vec2(-60,0), c1);
-j1 = reverseForceJoint(r1, a1, c1, a2, .05, 200);
-</script>
