@@ -892,3 +892,140 @@ handleJoints = () => {
       // Update connection A
       if(joint.rigiA.invMass != 0){
         addForceAtPoint(anchorAPos, joint.rigiA, force);
+      }
+
+      // Update connection B
+      if(joint.rigiB.invMass != 0){
+        addForceAtPoint(anchorBPos, joint.rigiB, scale(force, -1));	
+      }
+    }
+    
+    // Reverse force joint
+    else if(joint.type == "reverseForce"){
+
+      forceMagnitude = Math.max(0, joint.maxEffectDistance - distance);
+
+      // Update connection A
+      if(joint.rigiA.invMass != 0){
+        addForceAtPoint(anchorBPos, joint.rigiA, scale(normalize(direction), -forceMagnitude * joint.strength * forceHalving));
+      }
+
+      // Update connection B
+      if(joint.rigiB.invMass != 0){
+        addForceAtPoint(anchorAPos, joint.rigiB, scale(normalize(direction), forceMagnitude * joint.strength * forceHalving));	
+      }
+    }
+    
+    // Fixed joint
+    else if(joint.type == "fixed"){
+    
+      setMaterialZero(joint);
+
+      // Move shapes in order to make the anchor points superposed, proportionally to their inverse masses
+      var delta = sub(anchorBPos, anchorAPos);
+      var totalInvMass = joint.rigiA.invMass + joint.rigiB.invMass;
+      if(totalInvMass > 0){
+          var correctionA = scale(delta, joint.rigiA.invMass / totalInvMass);
+          var correctionB = scale(delta, joint.rigiB.invMass / totalInvMass);
+
+          // Move A and B
+          translateShape(joint.rigiA, correctionA);
+          translateShape(joint.rigiB, scale(correctionB, -1));
+      }
+
+      // Update connection A
+      for(var j = 0; j < joint.iterations; j++){
+        
+        direction = sub(anchorBPos, anchorAPos);
+        distance = len(direction);
+        if(distance < 0.00001) break;
+        normal = copy(normalize(direction));
+        contact = {
+          depth: 0,
+          normal: normal,
+          contactPoint: anchorBPos,
+          rigiA: joint.rigiB,
+          rigiB: joint.rigiA
+        };
+        if(distance > joint.initialLength){
+          contact.depth = distance - joint.initialLength;
+        }
+        else {
+          contact.depth = joint.initialLength - distance;
+          contact.normal = scale(contact.normal, -1);
+        }
+        
+        positionalCorrection(joint.rigiA, joint.rigiB, contact);
+        resolveCollision(joint.rigiA, joint.rigiB, contact);
+      }
+      
+      // Fix orientation strongly
+      currentOrientationDiff = joint.rigiB.angle - joint.rigiA.angle - 0.01;
+      angleError = joint.relativeAngle - currentOrientationDiff;
+      
+      // Apply symmetric angular correction
+      stiffness = 1; // try 1.0 for absolutely rigid
+      joint.rigiA.angle -= angleError * stiffness * 0.5;
+      joint.rigiB.angle += angleError * stiffness * 0.5;
+      
+      // Update connection B
+      for(j = 0; j < joint.iterations; j++){
+        direction = sub(anchorBPos, anchorAPos);
+        distance = len(direction);
+        if(distance < 0.00001) break;
+        normal = copy(normalize(direction));  
+        contact = {
+          depth: 0,
+          normal: normal,
+          contactPoint: anchorBPos,
+          rigiA: joint.rigiA,
+          rigiB: joint.rigiB
+        };
+        
+        if(distance > joint.initialLength){
+          contact.depth = distance - joint.initialLength;
+        }
+        else{
+          contact.depth = joint.initialLength - distance;
+          contact.normal = scale(contact.normal, -1);
+        }
+        
+        positionalCorrection(joint.rigiB, joint.rigiA, contact);
+        resolveCollision(joint.rigiB, joint.rigiA, contact);
+      }	
+
+      // Fix orientation strongly
+      currentOrientationDiff = joint.rigiA.angle - joint.rigiB.angle;
+      angleError = joint.relativeAngle - currentOrientationDiff;
+      
+      stiffness = 1;
+      joint.rigiA.angle += angleError * stiffness * 0.5;
+      joint.rigiB.angle -= angleError * stiffness * 0.5;
+      
+      avgAngVel = (joint.rigiA.angularVelocity + joint.rigiB.angularVelocity) * 0.5;
+      joint.rigiA.angularVelocity = avgAngVel;
+      joint.rigiB.angularVelocity = avgAngVel;
+		
+      restoreMaterial(joint);
+    }
+  }
+}
+
+// Main loop
+setInterval(() => {
+  update();
+  draw();
+}, 16);
+
+// Demo
+for(i = 0; i < 40; i++){
+  circle(Vec2(i*20, -i*20-500), 10, 10);
+}
+rectangle(Vec2(380, 450), 600, 20, 0, 0.5, .9);
+r1 = rectangle(Vec2(300, 200), 200, 100, 100);
+a1 = addAnchor(Vec2(75, 0), r1);
+r2 = rectangle(Vec2(600, 200), 300, 25, 100);
+a2 = addAnchor(Vec2(-125, 0), r2);
+c1 = circle(Vec2(300, 320), 60, 100);
+j1 = fixedJoint(r1, a1, r2, a2);
+</script>
