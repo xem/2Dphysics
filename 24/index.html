@@ -186,16 +186,16 @@ integrate = (shape, deltaTime) => {
   translateShape(shape, scale(shape.velocity, 1));
 
   // apply angular velocity to angle
-  rotateShape(shape, shape.angularVelocity * 1); 
+  rotateShape(shape, shape.angularVelocity * 1);
 
   // reset force accumulator
-  shape.forceAccumulator = Vec2(0, 0); 
+  shape.forceAccumulator = Vec2(0, 0);
 
   // velocity damping
-  shape.velocity = scale(shape.velocity, .99); 
+  shape.velocity = scale(shape.velocity, .99);
 
   // angular velocity damping
-  shape.angularVelocity *= 0.99; 
+  shape.angularVelocity *= 0.99;
 }
 
 // Compute the normals of a polygon

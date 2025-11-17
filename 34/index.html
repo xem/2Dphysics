@@ -93,6 +93,7 @@ circle = (
     color: color,
     anchorPoints: [],
     fixed: [],
+    hinge: [],
   };
   
   shapes.push(shape);
@@ -133,6 +134,7 @@ rectangle = (
     color: color,
     anchorPoints: [],
     fixed: [],
+    hinge: [],
 
     // Rectangle vertices
     vertices: [
@@ -660,8 +662,8 @@ update = () => {
       shape1 = shapes[i];
       shape2 = shapes[j];
     
-      // Ignore self-collisions, pairs of immobile shapes and collisions in fixed joints
-      if(i != j && !(shape1.invMass == 0 && shape2.invMass == 0) && !shape1.fixed.includes(j)){
+      // Ignore self-collisions, pairs of fixed shapes and collisions in fixed/hinge joints
+      if(i != j && !(shape1.invMass == 0 && shape2.invMass == 0) && !shape1.fixed.includes(j) && !shape1.hinge.includes(j)){
 
         // Reset manifold
         manifold = null;
@@ -844,13 +846,29 @@ fixedJoint = (rigiA, anchorA, rigiB, anchorB, iterations = 20) => {
   return joint;
 }
 
-restoreMaterial = joint => {
-  joint.rigiA.restitution = joint.rigiABounce;
-  joint.rigiA.friction = joint.rigiAFriction;
-  joint.rigiB.restitution = joint.rigiBBounce;
-  joint.rigiB.friction = joint.rigiBFriction;
+// Hinge joint
+hingeJoint = (rigiA, anchorA, rigiB, anchorB, iterations = 20) => {
+  var joint = {
+    type: "hinge",
+    rigiA: rigiA,
+		anchorA: anchorA,
+		rigiB: rigiB,
+		anchorB: anchorB,
+    iterations: iterations,
+    rigiABounce: rigiA.restitution,
+		rigiBBounce: rigiB.restitution,
+		rigiAFriction: rigiA.friction,
+		rigiBFriction: rigiB.friction,
+    initialLength: len(sub(rigiA.anchorPoints[anchorA], rigiB.anchorPoints[anchorB])),
+	};
+  
+  rigiA.hinged.push(shapes.indexOf(rigiB));
+  rigiB.hinged.push(shapes.indexOf(rigiA));
+  joints.push(joint);
+  return joint;
 }
 
+// Enable/disable friction and restitution in fixed/hinge joints 
 setMaterialZero = joint => {
   joint.rigiA.restitution = 0;
   joint.rigiA.friction = 0;
@@ -858,10 +876,17 @@ setMaterialZero = joint => {
   joint.rigiB.friction = 0;
 }
 
+restoreMaterial = joint => {
+  joint.rigiA.restitution = joint.rigiABounce;
+  joint.rigiA.friction = joint.rigiAFriction;
+  joint.rigiB.restitution = joint.rigiBBounce;
+  joint.rigiB.friction = joint.rigiBFriction;
+}
+
 // Joint handler
 handleJoints = () => {
 
-  var joint, forceHalving, anchorAPos, anchorBPos, direction, distance, restDistance, forceMagnitude, force, normal, contact, currentOrientationDiff, fixedOrientationVel, angleError, stiffness, avgAngVel, i, j;
+  var joint, forceHalving, anchorAPos, anchorBPos, direction, distance, restDistance, forceMagnitude, force, normal, contact, currentOrientationDiff, fixedOrientationVel, angleError, stiffness, avgAngVel, delta, totalInvMass, correctionA, correctionB, i, j;
   
   for(i = 0; i < joints.length; i++){
     
@@ -896,7 +921,7 @@ handleJoints = () => {
 
       // Update connection B
       if(joint.rigiB.invMass != 0){
-        addForceAtPoint(anchorBPos, joint.rigiB, scale(force, -1));
+        addForceAtPoint(anchorBPos, joint.rigiB, scale(force, -1));	
       }
     }
     
@@ -925,12 +950,12 @@ handleJoints = () => {
       delta = sub(anchorBPos, anchorAPos);
       totalInvMass = joint.rigiA.invMass + joint.rigiB.invMass;
       if(totalInvMass > 0){
-          correctionA = scale(delta, joint.rigiA.invMass / totalInvMass);
-          correctionB = scale(delta, joint.rigiB.invMass / totalInvMass);
+        correctionA = scale(delta, joint.rigiA.invMass / totalInvMass);
+        correctionB = scale(delta, joint.rigiB.invMass / totalInvMass);
 
-          // Move A and B
-          translateShape(joint.rigiA, correctionA);
-          translateShape(joint.rigiB, scale(correctionB, -1));
+        // Move A and B
+        translateShape(joint.rigiA, correctionA);
+        translateShape(joint.rigiB, scale(correctionB, -1));
       }
 
       // Update connection A
@@ -1008,6 +1033,78 @@ handleJoints = () => {
 		
       restoreMaterial(joint);
     }
+    
+    // Hinge joint
+    else if(joint.type == "hinge"){
+    
+      setMaterialZero(joint);
+
+      // Move shapes in order to make the anchor points superposed, proportionally to their inverse masses
+      var delta = sub(anchorBPos, anchorAPos);
+      var totalInvMass = joint.rigiA.invMass + joint.rigiB.invMass;
+      if(totalInvMass > 0){
+        correctionA = scale(delta, joint.rigiA.invMass / totalInvMass);
+        correctionB = scale(delta, joint.rigiB.invMass / totalInvMass);
+
+        // Move A and B
+        translateShape(joint.rigiA, correctionA);
+        translateShape(joint.rigiB, scale(correctionB, -1));
+      }
+
+      // Update connection A
+      for(var j = 0; j < joint.iterations; j++){
+        
+        direction = sub(anchorBPos, anchorAPos);
+        distance = len(direction);
+        if(distance < 0.00001) break;
+        normal = copy(normalize(direction));
+        contact = {
+          depth: 0,
+          normal: normal,
+          contactPoint: anchorBPos,
+          rigiA: joint.rigiB,
+          rigiB: joint.rigiA
+        };
+        if(distance > joint.initialLength){
+          contact.depth = distance - joint.initialLength;
+        }
+        else {
+          contact.depth = joint.initialLength - distance;
+          contact.normal = scale(contact.normal, -1);
+        }
+        
+        positionalCorrection(joint.rigiA, joint.rigiB, contact);
+        resolveCollision(joint.rigiA, joint.rigiB, contact);
+      }
+      
+      // Update connection B
+      for(j = 0; j < joint.iterations; j++){
+        direction = sub(anchorBPos, anchorAPos);
+        distance = len(direction);
+        if(distance < 0.00001) break;
+        normal = copy(normalize(direction));
+        contact = {
+          depth: 0,
+          normal: normal,
+          contactPoint: anchorBPos,
+          rigiA: joint.rigiA,
+          rigiB: joint.rigiB
+        };
+        
+        if(distance > joint.initialLength){
+          contact.depth = distance - joint.initialLength;
+        }
+        else{
+          contact.depth = joint.initialLength - distance;
+          contact.normal = scale(contact.normal, -1);
+        }
+        
+        positionalCorrection(joint.rigiB, joint.rigiA, contact);
+        resolveCollision(joint.rigiB, joint.rigiA, contact);
+      }
+		
+      restoreMaterial(joint);
+    }
   }
 }
 
@@ -1027,5 +1124,5 @@ a1 = addAnchor(Vec2(75, 0), r1);
 r2 = rectangle(Vec2(600, 200), 300, 25, 100);
 a2 = addAnchor(Vec2(-125, 0), r2);
 c1 = circle(Vec2(300, 320), 60, 100);
-j1 = fixedJoint(r1, a1, r2, a2);
+j1 = hingeJoint(r1, a1, r2, a2);
 </script>
