@@ -239,10 +239,10 @@ integrate = (shape, deltaTime) => {
   var rotationalAcceleration = shape.torqueAccumulator * shape.invInertia;
   
   // apply acceleration to velocity
-  shape.velocity = add(shape.velocity, scale(acceleration, 1));
+  shape.velocity = add(shape.velocity, acceleration);
 
   // apply velocity to position
-  translateShape(shape, scale(shape.velocity, 1));
+  translateShape(shape, shape.velocity);
   
   // apply rotational acceleration to angular velocity
   shape.angularVelocity += rotationalAcceleration * 1;

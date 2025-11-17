@@ -148,10 +148,10 @@ integrate = (shape, deltaTime) => {
   var acceleration = scale(shape.forceAccumulator, shape.invMass);
 
   // apply acceleration to velocity
-  shape.velocity = add(shape.velocity, scale(acceleration, 1));
+  shape.velocity = add(shape.velocity, acceleration);
 
   // apply velocity to position
-  translateShape(shape, scale(shape.velocity, 1));
+  translateShape(shape, shape.velocity);
 
   // reset force accumulator
   shape.forceAccumulator = Vec2(0, 0);

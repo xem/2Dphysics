@@ -244,10 +244,10 @@ integrate = (shape, deltaTime) => {
   var rotationalAcceleration = shape.torqueAccumulator * shape.invInertia;
   
   // apply acceleration to velocity
-  shape.velocity = add(shape.velocity, scale(acceleration, 1));
+  shape.velocity = add(shape.velocity, acceleration);
 
   // apply velocity to position
-  translateShape(shape, scale(shape.velocity, 1));
+  translateShape(shape, shape.velocity);
   
   // apply rotational acceleration to angular velocity
   shape.angularVelocity += rotationalAcceleration * 1;
@@ -862,8 +862,8 @@ hingeJoint = (rigiA, anchorA, rigiB, anchorB, iterations = 20) => {
     initialLength: len(sub(rigiA.anchorPoints[anchorA], rigiB.anchorPoints[anchorB])),
 	};
   
-  rigiA.hinged.push(shapes.indexOf(rigiB));
-  rigiB.hinged.push(shapes.indexOf(rigiA));
+  rigiA.hinge.push(shapes.indexOf(rigiB));
+  rigiB.hinge.push(shapes.indexOf(rigiA));
   joints.push(joint);
   return joint;
 }
