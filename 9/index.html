@@ -6,32 +6,20 @@
 c = a.getContext("2d");
 
 // Globals
-mx = 0, my = 0;     // mouse x, y
-mlb = 0, mrb = 0;   // mouse left and right button
+m = null, mp = 0; // mouse position, pressed
 shapes = [];
 
 // Event listeners
 onmousemove = e => {
-  mx = e.pageX - a.offsetLeft;
-  my = e.pageY - a.offsetTop;
+  m = Vec2(e.pageX - a.offsetLeft, e.pageY - a.offsetTop);
 }
 
 onmousedown = e => {
-  if(e.button == 0) mlb = 1;
-  if(e.button == 2) mrb = 1;
+  mp = 1;
 }
 
 onmouseup = e => {
-  if(e.button == 0) mlb = 0;
-  if(e.button == 2) mrb = 0;
-}
-
-a.oncontextmenu = () => {
-  return false;
-}
-
-onkeydown = e => {
-  console.log(e.code);
+  mp = 0;
 }
 
 // 2D vectors
@@ -209,6 +197,5 @@ setInterval(() => {
 // Demo
 c1 = circle(Vec2(220, 140), 60);
 c2 = circle(Vec2(80, 100), 60);
-
 
 </script>

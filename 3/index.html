@@ -6,36 +6,24 @@
 c = a.getContext("2d");
 
 // Globals
-mx = 0, my = 0,     // mouse x, y
-mlb = 0, mrb = 0,   // mouse left and right button
+m = null, mp = 0; // mouse position, pressed
 
 // Event listeners
 onmousemove = e => {
-  mx = e.pageX - a.offsetLeft;
-  my = e.pageY - a.offsetTop;
+  m = {x: e.pageX - a.offsetLeft, y: e.pageY - a.offsetTop};
 }
 
 onmousedown = e => {
-  if(e.button == 0) mlb = 1;
-  if(e.button == 2) mrb = 1;
+  mp = 1;
 }
 
 onmouseup = e => {
-  if(e.button == 0) mlb = 0;
-  if(e.button == 2) mrb = 0;
-}
-
-a.oncontextmenu = () => {
-  return false; // prevent right click dropdown
-}
-
-onkeydown = e => {
-  console.log(e.code); // Test logs
+  mp = 0;
 }
 
 // Update the physics engine
 update = () => {
-  console.log(mx, my); // Test logs
+  console.log(m); // Test logs
 }
 
 // Render the scene

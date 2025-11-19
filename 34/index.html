@@ -25,8 +25,7 @@ rotate = (v, center, angle, x, y) => {
 cross = (v, w) => v.x * w.y - v.y * w.x;
 
 // Globals
-mx = 0, my = 0;     // mouse x, y
-mlb = 0, mrb = 0;   // mouse left and right button
+m = null, mp = 0; // mouse position, pressed
 selectedRigidBody = null;
 selectedPosition = null;
 selectedAnchorId = null;
@@ -37,26 +36,15 @@ gravity = Vec2(0, 0.1);
 
 // Event listeners
 onmousemove = e => {
-  mx = e.pageX - a.offsetLeft;
-  my = e.pageY - a.offsetTop;
+  m = Vec2(e.pageX - a.offsetLeft, e.pageY - a.offsetTop);
 }
 
 onmousedown = e => {
-  if(e.button == 0) mlb = 1;
-  if(e.button == 2) mrb = 1;
+  mp = 1;
 }
 
 onmouseup = e => {
-  if(e.button == 0) mlb = 0;
-  if(e.button == 2) mrb = 0;
-}
-
-a.oncontextmenu = () => {
-  return false;
-}
-
-onkeydown = e => {
-  console.log(e.code);
+  mp = 0;
 }
 
 // Shapes
@@ -607,16 +595,15 @@ drawLine = (start, end, color = "#888") => {
 
 // Mouse interactions
 handleMouseObjectInteraction = () => {
-  var mousePos = Vec2(mx, my);
 
   // Left button pressed
-  if(mlb){
+  if(mp){
     for(var i = 0; i < shapes.length; i++){
-      var mouseInside = isPointInside(mousePos, shapes[i]);
+      var mouseInside = isPointInside(m, shapes[i]);
       if(mouseInside && selectedRigidBody == null){
         selectedRigidBody = shapes[i];
-        selectedPosition = copy(mousePos);
-        var localPos = sub(mousePos, shapes[i].center);
+        selectedPosition = copy(m);
+        var localPos = sub(m, shapes[i].center);
         selectedAnchorId = addAnchor(localPos, shapes[i]);
       }
     }
@@ -635,7 +622,7 @@ handleMouseObjectInteraction = () => {
   // Apply force
   if(selectedRigidBody && selectedPosition){
     var start = selectedRigidBody.anchorPoints[selectedAnchorId];
-    var force = sub(mousePos, start);
+    var force = sub(m, start);
     addForceAtPoint(start, selectedRigidBody, scale(force, 0.01));			
   }
 }
