@@ -485,7 +485,8 @@ resolveCollision = (shape1, shape2, manifold) => {
 
   // Compute the tangential (frictional) impulse magnitude
   // This resists sliding motion along the tangent direction
-  var frictionalImpulse = -(1 + e) * dot(relativeVel, tangent) * minFriction;
+  // Original tuto used the formula -(1+e) * dot(...) but it makes no sense to use (1+e) here
+  var frictionalImpulse = -dot(relativeVel, tangent) * minFriction;
 
   // Divide by total effective mass (linear + rotational)
   frictionalImpulse /= (invMassSum + crossSumTangent);

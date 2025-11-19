@@ -358,10 +358,9 @@ positionalCorrection = (shape1, shape2, manifold) => {
 
 // Resolve collision
 resolveCollision = (shape1, shape2, manifold) => {
-
   var relativeVelocityAlongNormal = dot(sub(shape2.velocity, shape1.velocity), manifold.normal);
   if(relativeVelocityAlongNormal > 0) return; // shapes are already going away from each other
-  if(shape1.invMass == 0 && shape2.invMass == 0) return;
+  if(shape1.invMass == 0 && shape2.invMass == 0) return; // skip if both shapes are fixed
   var e = Math.min(shape1.restitution, shape2.restitution); // total elasticity
   var invMassSum = shape1.invMass + shape2.invMass;
   var j = (-(1 + e) * relativeVelocityAlongNormal) / invMassSum; // impulse magnitude
@@ -519,6 +518,6 @@ c1 = circle(Vec2(190, 100), 20, 1, 0, 1, Vec2(1, 1));
 c2 = circle(Vec2(250, 120), 20, 0, 0, 1);
 r1 = rectangle(Vec2(200, 220), 100, 20, .2);
 r2 = rectangle(Vec2(200, 280), 50, 50, 10, 0, 1);
-rectangle(Vec2(200, 350), 400, 20, 0);
+rectangle(Vec2(300, 350), 400, 20, 0);
 
 </script>

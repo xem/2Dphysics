@@ -79,7 +79,7 @@ circle = (
     torqueAccumulator: 0,
     color: color,
     anchorPoints: [],
-    fixed: [],
+    noCollision: [],
   };
   
   shapes.push(shape);
@@ -119,7 +119,7 @@ rectangle = (
     torqueAccumulator: 0,
     color: color,
     anchorPoints: [],
-    fixed: [],
+    noCollision: [],
 
     // Rectangle vertices
     vertices: [
@@ -647,7 +647,7 @@ update = () => {
       shape2 = shapes[j];
     
       // Ignore self-collisions, pairs of immobile shapes and collisions in fixed joints
-      if(i != j && !(shape1.invMass == 0 && shape2.invMass == 0) && !shape1.fixed.includes(j)){
+      if(i != j && !(shape1.invMass == 0 && shape2.invMass == 0) && !shape1.noCollision.includes(j)){
 
         // Reset manifold
         manifold = null;
@@ -824,8 +824,8 @@ fixedJoint = (rigiA, anchorA, rigiB, anchorB, iterations = 20) => {
     relativeAngle: rigiB.angle - rigiA.angle
 	};
   
-  rigiA.fixed.push(shapes.indexOf(rigiB));
-  rigiB.fixed.push(shapes.indexOf(rigiA));
+  rigiA.noCollision.push(shapes.indexOf(rigiB));
+  rigiB.noCollision.push(shapes.indexOf(rigiA));
   joints.push(joint);
   return joint;
 }
