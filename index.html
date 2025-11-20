@@ -75,30 +75,118 @@ shape=(
   s           // return shape
 ),
 
-// Is point inside a shape
-isPointInside=(r,e)=>{if("circle"==e.type){var i=l(s(e.center,r));return e.size1>i}for(var t=!1,n=0;n<e.vertices.length;n++){var c=e.vertices[n],v=e.normals[n],a=s(r,c);if(d(a,v)>0)return!1;t=!0}return t},
+// Check if a point is inside a shape
+// params: point (world coordinates), shape
+pi=(point,shape,t=1,i=4)=>{
 
-// Add anchor point (local coordinates)
-// params: anchor, shape
-aAnchor=(a,s)=>(s.anchorPoints.push(a=A(a,s.center)),s.anchorPoints.length-1),
+  // circles: return true if radius is bigger than distance to center
+  if(shape.type=="circle")t=shape.size1>l(s(shape.center,point));
+  
+  // rectangles: return false if dot(sub(point,vertex),normal) > 0 for any edge
+  else for(;i--;)if(d(s(point,shape.vertices[i]),shape.normals[i])>0)t=0;
+  
+  return t
+},
+
+// Add an anchor to a shape
+// params: anchor (local coordinates), shape
+aa=(anchor,shape)=>(
+  
+  // add anchor in the point's anchors list (converted in world coordinates)
+  shape.anchorPoints.push(A(anchor,shape.center)),
+  
+  // return anchor index
+  shape.anchorPoints.length-1
+),
 
 // Add force on a point
-// (point is in world coordinates)
-aForceAtPoint=(c,r,o)=>{var t=s(c,r.center);r.forceAccumulator=A(r.forceAccumulator,o),r.torqueAccumulator+=C(t,o)},
+// params: point (world coordinates), shape, force (2D vector)
+af=(point,shape,force)=>{
+
+  // translation force
+  shape.forceAccumulator=A(shape.forceAccumulator,force),
+  
+  // rotation force
+  shape.torqueAccumulator+=C(s(point,shape.center),force)
+},
 
 // Translate a shape
-translateShape=(e,r)=>{if(e.center=A(e.center,r),"rectangle"==e.type)for(var n in e.vertices)e.vertices[n]=A(e.vertices[n],r);for(var n in e.anchorPoints)e.anchorPoints[n]=A(e.anchorPoints[n],r)},
+// params: shape, offset (2D vector)
+ts=(shape,offset,n)=>{
+  shape.center=A(shape.center,offset);
+  for(n in shape.vertices)
+    shape.vertices[n]=A(shape.vertices[n],offset);
+  for(n in shape.anchorPoints)
+    shape.anchorPoints[n]=A(shape.anchorPoints[n],offset)
+},
 
-// Rotate a shape around its center (angle in radians)
-rShape=(e,n)=>{if(e.angle+=n,"rectangle"==e.type){for(var c in e.vertices)e.vertices[c]=r(e.vertices[c],e.center,n);cn(e)}for(var c in e.anchorPoints)e.anchorPoints[c]=r(e.anchorPoints[c],e.center,n)},
+// Rotate a shape around its center
+// params: shape, angle (in radians)
+rs=(shape,angle,t)=>{
+
+  // update angle
+  shape.angle+=angle;
+
+  // rectangles
+  if(shape.type=="rectangle"){
+    
+    // rotate rectangle vertices
+    for(t in shape.vertices)
+      shape.vertices[t]=r(shape.vertices[t],shape.center,angle);
+      
+    // compute rectangle normals
+    cn(shape);
+  }
+    
+  // rotate anchor points
+  for(t in shape.anchorPoints)
+    shape.anchorPoints[t]=r(shape.anchorPoints[t],shape.center,angle)
+},
 
 // Shape integration
-integrate=a=>{if(0!==a.invMass){var t=S(a.forceAccumulator,a.invMass),c=a.torqueAccumulator*a.invInertia;a.velocity=A(a.velocity,t),translateShape(a,a.velocity),a.velocity=S(a.velocity,.99),a.angularVelocity+=1*c,rShape(a,1*a.angularVelocity),a.angularVelocity*=.99,a.forceAccumulator=V(0,0),a.torqueAccumulator=0}};
+si=shape=>{
+
+  // skip fixed objects
+  if(shape.invMass!==0){
+    
+    // add force accumulator to velocity (proportionally to inverse mass)
+    shape.velocity=A(shape.velocity,S(shape.forceAccumulator,shape.invMass)),
+    
+    // add velocity to position
+    ts(shape,shape.velocity),
+    
+    // damp velocity
+    shape.velocity=S(shape.velocity,.99),
+    
+    // reset force accumulator
+    shape.forceAccumulator=V(0,0),
+    
+    // add torque to angular velocity (proportionally to inverse inertia)
+    shape.angularVelocity+=shape.torqueAccumulator*shape.invInertia,
+    
+    // add angular velocity to angle
+    rs(shape,shape.angularVelocity),
+    
+    // damp angular velocity
+    shape.angularVelocity*=.99,
+    
+    // reset torque accumulator
+    shape.torqueAccumulator=0
+  }
+},
 
 // Compute the normals of a polygon
-cn=e=>{if("circle"!=e.type){e.normals=[];for(var r=0;r<e.vertices.length;r++)e.normals.push(N(n(s(e.vertices[(r+1)%e.vertices.length],e.vertices[r]))))}},
+cn=(shape,t=0)=>{
+  if(shape.type!=="circle"){
+    shape.normals=[];
+    for(;t<4;t++)
+      shape.normals.push(N(n(s(shape.vertices[(t+1)%4],shape.vertices[t]))))
+  }
+},
 
-// SAT: test two rectangles against each other's axis and choose the minimal penetration depth
+// Detect rectangle-rectangle collisions using SAT
+// rectangles are tested against each other's axis and we choose the minimal penetration depth
+// params: rect1, rect2
 rectangleRectangleCollision = (r1, r2) => {
 
   var contact = null;
@@ -123,7 +211,7 @@ rectangleRectangleCollision = (r1, r2) => {
   
   // Return the final contact information (depth, normal, contact point)
   return contact;
-}
+},
 
 // SAT: Test all normals of rectangle 1 as potential separating axes
 getContactPoint = (r1, r2) => {
@@ -154,7 +242,7 @@ getContactPoint = (r1, r2) => {
   }
   // Return the axis with the minimum overlap
   return contact;
-}
+},
 
 // SAT: Find which vertex from the other rectangle penetrates the deepest along a given axis
 findSupportPoint = (normalOnEdge, pointOnEdge, otherPolygonVertices) => {
@@ -181,7 +269,7 @@ findSupportPoint = (normalOnEdge, pointOnEdge, otherPolygonVertices) => {
 
   // Return the vertex that is deepest along this normal
   return supportPoint;
-}
+},
 
 // Detect collision between a circle and a rectangle
 circleRectangleCollision = (circle, rectangle) => {
@@ -196,7 +284,7 @@ circleRectangleCollision = (circle, rectangle) => {
 
   // Return the resulting contact information (if any)
   return contact;
-}
+},
 
 // Test collision between a circle and the edges of a rectangle
 circleVsRectangleEdges = (circle, rectangle) => {
@@ -253,7 +341,7 @@ circleVsRectangleEdges = (circle, rectangle) => {
 
   // No edge collision
   return null;
-}
+},
 
 // Test collision between a circle and the corners of a rectangle
 circleVsRectangleCorners = (circle, rectangle) => {
@@ -282,7 +370,10 @@ circleVsRectangleCorners = (circle, rectangle) => {
 
   // No corner inside the circle → no collision
   return null;
-}
+},
+
+
+//////////////////////
 
 // Correct positioning
 positionalCorrection = (shape1, shape2, manifold) => {
@@ -291,10 +382,10 @@ positionalCorrection = (shape1, shape2, manifold) => {
   var correctionAmount = manifold.depth / (shape1.invMass + shape2.invMass) * correction;
   var correctionVector = S(manifold.normal, correctionAmount);
   if(shape1.invMass > 0){
-    translateShape(shape1, S(correctionVector, -shape1.invMass));
+    ts(shape1, S(correctionVector, -shape1.invMass));
   }
   if(shape2.invMass > 0){
-    translateShape(shape2, S(correctionVector, shape2.invMass));
+    ts(shape2, S(correctionVector, shape2.invMass));
   }
 }
 
@@ -434,12 +525,12 @@ handleMouseObjectInteraction = () => {
   // Left button pressed
   if(p){
     for(var i = 0; i < H.length; i++){
-      var mouseInside = isPointInside(m, H[i]);
+      var mouseInside = pi(m, H[i]);
       if(mouseInside && sr == 0){
         sr = H[i];
         sp = V(m.x,m.y);
         var localPos = s(m, H[i].center);
-        sa = aAnchor(localPos, H[i]);
+        sa = aa(localPos, H[i]);
       }
     }
   }
@@ -458,7 +549,7 @@ handleMouseObjectInteraction = () => {
   if(sr && sp){
     var start = sr.anchorPoints[sa];
     var force = s(m, start);
-    aForceAtPoint(start, sr, S(force, 0.01));			
+    af(start, sr, S(force, 0.01));			
   }
 }
 
@@ -535,7 +626,7 @@ update = () => {
   
   // Integration
   for(i of H){
-    integrate(i);
+    si(i);
   }
   
   // Mouse interactions
@@ -723,10 +814,10 @@ handleJoints = () => {
     if(joint.type == "force"){
       
       // Update connection A
-      aForceAtPoint(anchorBPos, joint.rigiA, S(direction, joint.strength / 2));
+      af(anchorBPos, joint.rigiA, S(direction, joint.strength / 2));
       
       // Update connection B
-      aForceAtPoint(anchorAPos, joint.rigiB, S(direction, -joint.strength / 2));
+      af(anchorAPos, joint.rigiB, S(direction, -joint.strength / 2));
     }
     
     // Spring joint
@@ -738,12 +829,12 @@ handleJoints = () => {
     
       // Update connection A
       if(joint.rigiA.invMass != 0){
-        aForceAtPoint(anchorAPos, joint.rigiA, force);
+        af(anchorAPos, joint.rigiA, force);
       }
 
       // Update connection B
       if(joint.rigiB.invMass != 0){
-        aForceAtPoint(anchorBPos, joint.rigiB, S(force, -1));	
+        af(anchorBPos, joint.rigiB, S(force, -1));	
       }
     }
     
@@ -754,12 +845,12 @@ handleJoints = () => {
 
       // Update connection A
       if(joint.rigiA.invMass != 0){
-        aForceAtPoint(anchorBPos, joint.rigiA, S(n(direction), -forceMagnitude * joint.strength * forceHalving));
+        af(anchorBPos, joint.rigiA, S(n(direction), -forceMagnitude * joint.strength * forceHalving));
       }
 
       // Update connection B
       if(joint.rigiB.invMass != 0){
-        aForceAtPoint(anchorAPos, joint.rigiB, S(n(direction), forceMagnitude * joint.strength * forceHalving));	
+        af(anchorAPos, joint.rigiB, S(n(direction), forceMagnitude * joint.strength * forceHalving));	
       }
     }
     
@@ -776,8 +867,8 @@ handleJoints = () => {
         correctionB = S(delta, joint.rigiB.invMass / totalInvMass);
 
         // Move A and B
-        translateShape(joint.rigiA, correctionA);
-        translateShape(joint.rigiB, S(correctionB, -1));
+        ts(joint.rigiA, correctionA);
+        ts(joint.rigiB, S(correctionB, -1));
       }
 
       // Update connection A
@@ -869,8 +960,8 @@ handleJoints = () => {
         correctionB = S(delta, joint.rigiB.invMass / totalInvMass);
 
         // Move A and B
-        translateShape(joint.rigiA, correctionA);
-        translateShape(joint.rigiB, S(correctionB, -1));
+        ts(joint.rigiA, correctionA);
+        ts(joint.rigiB, S(correctionB, -1));
       }
 
       // Update connection A
@@ -941,11 +1032,11 @@ for(i = 0; i < 40; i++){
   shape("circle", V(i*20, -i*20-200), 10, 0, 10, .5, .5);
 }
 s1 = shape("rectangle", V(380, 450), 600, 20, 0, .5, .5);
-rShape(s1, .1);
+rs(s1, .1);
 r1 = shape("rectangle", V(300, 200), 200, 100, 100);
-a1 = aAnchor(V(75, 0), r1);
+a1 = aa(V(75, 0), r1);
 r2 = shape("rectangle", V(600, 200), 300, 25, 100);
-a2 = aAnchor(V(-125, 0), r2);
+a2 = aa(V(-125, 0), r2);
 c1 = shape("circle", V(300, 320), 60, 0, 100);
 j1 = fixedJoint(r1, a1, r2, a2);
 </script>

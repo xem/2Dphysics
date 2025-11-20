@@ -1102,11 +1102,11 @@ setInterval(() => {
 for(i = 0; i < 40; i++){
   circle(Vec2(i*20, -i*20-500), 10, 10);
 }
-rectangle(Vec2(380, 450), 600, 20, 0, 0.5, .9);
+rectangle(Vec2(380, 450), 600, 20, 0, 0.5, .9,.1);
 r1 = rectangle(Vec2(300, 200), 200, 100, 100);
 a1 = addAnchor(Vec2(75, 0), r1);
 r2 = rectangle(Vec2(600, 200), 300, 25, 100);
 a2 = addAnchor(Vec2(-125, 0), r2);
 c1 = circle(Vec2(300, 320), 60, 100);
-j1 = hingeJoint(r1, a1, r2, a2);
+j1 = fixedJoint(r1, a1, r2, a2);
 </script>
