@@ -1,0 +1,951 @@
+<!doctype html>
+<canvas id=a width=800 height=600 style="background:#eee"></canvas>
+<script>
+
+// Canvas setup
+c=a.getContext`2d`,
+
+// 2D vectors
+V=(x,y)=>({x,y}),             // Vec2 constructor
+n=v=>S(v,1/l(v)),             // normalize
+l=v=>d(v,v)**.5,              // length
+N=v=>V(v.y,-v.x),             // normal
+d=(x,y)=>x.x*y.x+x.y*y.y,     // dot
+A=(x,y)=>V(x.x+y.x,x.y+y.y),  // add
+s=(x,y)=>A(x,S(y,-1)),        // sub
+S=(x,y)=>V(x.x*y,x.y*y),      // scale
+D=(x,y)=>l(s(x,y)),           // dist
+r=(x,y,c)=>(V((x.x-y.x)*Math.cos(c)-(x.y-y.y)*Math.sin(c)+y.x,(x.x-y.x)*Math.sin(c)+(x.y-y.y)*Math.cos(c)+y.y)), // rotate
+C=(x,y)=>x.x*y.y-x.y*y.x,     // cross
+
+// Globals
+m=0,p=0,        // mouse position, pressed
+sr=0,sp=0,sa=0, // selected rigidbody, position, anchor
+H=[],J=[],M=[], // shapes, joints, manifolds
+G=V(0,.1),      // Gravity
+
+// Event listeners
+onmousemove=e=>m=V(e.pageX-a.offsetLeft,e.pageY-a.offsetTop),
+onmousedown=onmouseup=e=>p=e.type[7],
+
+// Shapes
+shape=(
+  type,
+  center,
+  size1,
+  size2,
+  mass=1,
+  friction=0,
+  restitution=1,
+  color,
+
+  // inertia
+  n=("circle"==type?mass*size1**2/2:mass*(size1**2+size2**2)/12), 
+
+  // shape
+  s={
+    type,
+    center,
+    size1,
+    size2,
+    mass,
+    invMass:0===mass?0:1/mass,
+    friction,
+    restitution,
+    angle:0,
+    velocity:V(0,0),
+    angularVelocity:0,
+    inertia:n,
+    invInertia:0===n?0:1/n,
+    forceAccumulator:V(0,0),
+    torqueAccumulator:0,
+    color,
+    anchorPoints:[],
+    noCollision:[],
+    vertices:"circle"==type?[]:[
+      V(center.x-size1/2,center.y-size2/2),
+      V(center.x+size1/2,center.y-size2/2),
+      V(center.x+size1/2,center.y+size2/2),
+      V(center.x-size1/2,center.y+size2/2)
+    ]
+  }
+)=>(
+  cn(s),      // calc normals
+  H.push(s),  // add shape in shapes list
+  s           // return shape
+),
+
+// Is point inside a shape
+isPointInside=(r,e)=>{if("circle"==e.type){var i=l(s(e.center,r));return e.size1>i}for(var t=!1,n=0;n<e.vertices.length;n++){var c=e.vertices[n],v=e.normals[n],a=s(r,c);if(d(a,v)>0)return!1;t=!0}return t},
+
+// Add anchor point (local coordinates)
+// params: anchor, shape
+aAnchor=(a,s)=>(s.anchorPoints.push(a=A(a,s.center)),s.anchorPoints.length-1),
+
+// Add force on a point
+// (point is in world coordinates)
+aForceAtPoint=(c,r,o)=>{var t=s(c,r.center);r.forceAccumulator=A(r.forceAccumulator,o),r.torqueAccumulator+=C(t,o)},
+
+// Translate a shape
+translateShape=(e,r)=>{if(e.center=A(e.center,r),"rectangle"==e.type)for(var n in e.vertices)e.vertices[n]=A(e.vertices[n],r);for(var n in e.anchorPoints)e.anchorPoints[n]=A(e.anchorPoints[n],r)},
+
+// Rotate a shape around its center (angle in radians)
+rShape=(e,n)=>{if(e.angle+=n,"rectangle"==e.type){for(var c in e.vertices)e.vertices[c]=r(e.vertices[c],e.center,n);cn(e)}for(var c in e.anchorPoints)e.anchorPoints[c]=r(e.anchorPoints[c],e.center,n)},
+
+// Shape integration
+integrate=a=>{if(0!==a.invMass){var t=S(a.forceAccumulator,a.invMass),c=a.torqueAccumulator*a.invInertia;a.velocity=A(a.velocity,t),translateShape(a,a.velocity),a.velocity=S(a.velocity,.99),a.angularVelocity+=1*c,rShape(a,1*a.angularVelocity),a.angularVelocity*=.99,a.forceAccumulator=V(0,0),a.torqueAccumulator=0}};
+
+// Compute the normals of a polygon
+cn=e=>{if("circle"!=e.type){e.normals=[];for(var r=0;r<e.vertices.length;r++)e.normals.push(N(n(s(e.vertices[(r+1)%e.vertices.length],e.vertices[r]))))}},
+
+// SAT: test two rectangles against each other's axis and choose the minimal penetration depth
+rectangleRectangleCollision = (r1, r2) => {
+
+  var contact = null;
+  
+  // Check all axes from rectangle A against rectangle B
+  var contactA = getContactPoint(r1, r2);
+  if(contactA == null) return null;
+  
+  // Check all axes from rectangle B against rectangle A
+  var contactB = getContactPoint(r2, r1);
+  if(contactB == null) return null;
+  
+  // Choose the smallest penetration depth (most restrictive axis)
+  if(contactA.depth < contactB.depth){
+    contact = contactA;
+  }
+  else {
+    contact = contactB;
+    // Reverse the normal direction to ensure it points from A to B
+    contact.normal = S(contact.normal, -1);
+  }
+  
+  // Return the final contact information (depth, normal, contact point)
+  return contact;
+}
+
+// SAT: Test all normals of rectangle 1 as potential separating axes
+getContactPoint = (r1, r2) => {
+
+  var contact = null;
+  var minDepth = Number.MAX_VALUE;
+  var supportPoint = null;
+
+  // For each normal of rectangle 1
+  for(var i = 0; i < r1.normals.length; i++){
+    // Find which vertex of rectangle 2 penetrates deepest along this normal
+    supportPoint = findSupportPoint(r1.normals[i], r1.vertices[i], r2.vertices);
+
+    // If there is no overlap along this normal, there is no collision
+    if(supportPoint == null) return null;
+
+    // Keep the smallest penetration depth found so far
+    if(supportPoint.depth < minDepth){
+      minDepth = supportPoint.depth;
+
+      // Store the contact information for this axis
+      contact = {
+        depth: minDepth,              // penetration Dance
+        normal: r1.normals[i],        // collision normal (axis of penetration)
+        contactPoint: supportPoint.vertex // point of contact on rectangle 2
+      };
+    }
+  }
+  // Return the axis with the minimum overlap
+  return contact;
+}
+
+// SAT: Find which vertex from the other rectangle penetrates the deepest along a given axis
+findSupportPoint = (normalOnEdge, pointOnEdge, otherPolygonVertices) => {
+
+  var maxDepth = 0;
+  var supportPoint = null;
+  var depth = null;
+
+  // For each vertex of the other rectangle
+  for(var i = 0; i < otherPolygonVertices.length; i++){
+    // Project the vertex onto the axis defined by the current normal
+    // The 'depth' here represents how far the vertex is behind the edge (penetration Dance)
+    depth = d(s(otherPolygonVertices[i], pointOnEdge), S(normalOnEdge, -1));
+
+    // Keep the vertex that penetrates the most (maximum depth)
+    if(depth > maxDepth){
+      maxDepth = depth;
+      supportPoint = {
+        vertex: otherPolygonVertices[i], // the vertex with the deepest penetration
+        depth: depth                     // its penetration Dance
+      };
+    }
+  }
+
+  // Return the vertex that is deepest along this normal
+  return supportPoint;
+}
+
+// Detect collision between a circle and a rectangle
+circleRectangleCollision = (circle, rectangle) => {
+
+  // First, try to detect a collision between the circle and the rectangle's edges
+  var contact = circleVsRectangleEdges(circle, rectangle);
+
+  // If no edge collision was found, test against the rectangle's corners
+  if(!contact){
+    contact = circleVsRectangleCorners(circle, rectangle);
+  }
+
+  // Return the resulting contact information (if any)
+  return contact;
+}
+
+// Test collision between a circle and the edges of a rectangle
+circleVsRectangleEdges = (circle, rectangle) => {
+
+  var nearestEdgeVertex = null;
+  var nearestEdgeNormal = null;
+  var dirToNext, circleDirToNextProjection, circleDirToNormalProjection;
+
+  // Loop over each edge of the rectangle
+  for(var i = 0; i < rectangle.vertices.length; i++){
+    // Vector from the current vertex of the rectangle to the circle center
+    vertToCircle = s(circle.center, rectangle.vertices[i]);
+
+    // Direction vector along the current edge
+    dirToNext = s(rectangle.vertices[(i + 1) % rectangle.vertices.length], rectangle.vertices[i]);
+
+    // Project the circle center direction onto the edge direction
+    circleDirToNextProjection = d(vertToCircle, n(dirToNext));
+
+    // Project the circle center direction onto the edge normal
+    circleDirToNormalProjection = d(vertToCircle, rectangle.normals[i]);
+
+    // Check if the circle center is within the edge segment bounds
+    // (projection along the edge is between 0 and edge length)
+    // and on the "inner" side of the edge (normal projection ≥ 0)
+    if(circleDirToNormalProjection >= 0 && circleDirToNextProjection > 0 && circleDirToNextProjection < l(dirToNext)){
+      // This edge is the nearest potential collision candidate
+      nearestEdgeNormal = rectangle.normals[i];
+      nearestEdgeVertex = rectangle.vertices[i];
+    }
+  }
+
+  // If no valid edge was found, no collision is possible along edges
+  if(nearestEdgeNormal == null || nearestEdgeVertex == null){
+    return null;
+  }
+
+  // Copute how far the circle center is from the edge along the normal
+  var projectionToEdgeNormal = d(nearestEdgeNormal, s(circle.center, nearestEdgeVertex));
+
+  // If the circle overlaps the edge (Dance < size1), report a collision
+  if(projectionToEdgeNormal - circle.size1 < 0){
+    return {
+      // Penetration depth (how far the circle intrudes)
+      depth: -(projectionToEdgeNormal - circle.size1),
+
+      // Normal points from rectangle toward the circle
+      normal: S(nearestEdgeNormal, -1),
+
+      // Approximate contact point on the circle’s perimeter
+      contactPoint: A(circle.center, S(nearestEdgeNormal, -circle.size1))
+    };
+  }
+
+  // No edge collision
+  return null;
+}
+
+// Test collision between a circle and the corners of a rectangle
+circleVsRectangleCorners = (circle, rectangle) => {
+
+  var dirToCircleCenter;
+
+  // Loop over all rectangle vertices
+  for(var i = 0; i < rectangle.vertices.length; i++){
+    // Vector from the circle center to the current corner
+    dirToCircleCenter = s(rectangle.vertices[i], circle.center);
+
+    // If the corner is inside the circle’s size1, a collision occurs
+    if(l(dirToCircleCenter) < circle.size1){
+      return {
+        // Penetration depth (difference between size1 and Dance)
+        depth: circle.size1 - l(dirToCircleCenter),
+
+        // Normal pointing from circle center toward the corner
+        normal: n(dirToCircleCenter),
+
+        // Contact point is the rectangle corner itself
+        contactPoint: rectangle.vertices[i]
+      };
+    }
+  }
+
+  // No corner inside the circle → no collision
+  return null;
+}
+
+// Correct positioning
+positionalCorrection = (shape1, shape2, manifold) => {
+
+  var correction = 0.7;
+  var correctionAmount = manifold.depth / (shape1.invMass + shape2.invMass) * correction;
+  var correctionVector = S(manifold.normal, correctionAmount);
+  if(shape1.invMass > 0){
+    translateShape(shape1, S(correctionVector, -shape1.invMass));
+  }
+  if(shape2.invMass > 0){
+    translateShape(shape2, S(correctionVector, shape2.invMass));
+  }
+}
+
+// Resolve collision
+resolveCollision = (shape1, shape2, manifold) => {
+
+  // If both objects are kinematic, skip
+  if(shape1.invMass == 0 && shape2.invMass == 0) return;
+  
+  // Normal ipulse
+
+  // Vectors from each object's center to the contact point
+  var penetrationToCentroidA = s(manifold.contactPoint, shape1.center);
+  var penetrationToCentroidB = s(manifold.contactPoint, shape2.center);
+
+  // Linear velocity contribution at the contact point due to angular velocity
+  var angularVelocityPenetrationCentroidA = V(
+    -shape1.angularVelocity * penetrationToCentroidA.y,
+     shape1.angularVelocity * penetrationToCentroidA.x
+  );
+  var angularVelocityPenetrationCentroidB = V(
+    -shape2.angularVelocity * penetrationToCentroidB.y,
+     shape2.angularVelocity * penetrationToCentroidB.x
+  );
+
+  // Total velocity at the contact point = linear + rotational
+  var relativeVelocityA = A(shape1.velocity, angularVelocityPenetrationCentroidA);
+  var relativeVelocityB = A(shape2.velocity, angularVelocityPenetrationCentroidB);
+
+  // Relative velocity between both contact points
+  var relativeVel = s(relativeVelocityB, relativeVelocityA);
+
+  // Project relative velocity onto the collision normal
+  var velocityInNormal = d(relativeVel, manifold.normal);
+
+  // If the objects are moving apart (positive relative velocity along the normal), skip
+  if(velocityInNormal > 0) return;
+
+  // Restitution coefficient (bounciness)
+  var e = Math.min(shape1.restitution, shape2.restitution);
+
+  // Copute the "lever arm" C product (how far from the center the ipulse acts)
+  var pToCentroidCrossNormalA = C(penetrationToCentroidA, manifold.normal);
+  var pToCentroidCrossNormalB = C(penetrationToCentroidB, manifold.normal);
+
+  // Effective inverse mass including both linear and rotational contributions
+  var invMassSum = shape1.invMass + shape2.invMass;
+  var rigiAInvInertia = shape1.invInertia;
+  var rigiBInvInertia = shape2.invInertia;
+  var CNSum =
+    pToCentroidCrossNormalA * pToCentroidCrossNormalA * rigiAInvInertia +
+    pToCentroidCrossNormalB * pToCentroidCrossNormalB * rigiBInvInertia;
+
+  // Copute the scalar ipulse magnitude (j)
+  var j = -(1 + e) * velocityInNormal;
+  j /= (invMassSum + CNSum);
+
+  // Convert scalar ipulse into a vector along the collision normal
+  var ipulseVector = S(manifold.normal, j);
+
+  // Apply ipulse to linear velocities (in opposite directions)
+  shape1.velocity = s(shape1.velocity, S(ipulseVector, shape1.invMass));
+  shape2.velocity = A(shape2.velocity, S(ipulseVector, shape2.invMass));
+
+  // Apply rotational ipulse based on lever arm and inverse inertia
+  shape1.angularVelocity += -pToCentroidCrossNormalA * j * rigiAInvInertia;
+  shape2.angularVelocity +=  pToCentroidCrossNormalB * j * rigiBInvInertia;
+
+  // Frictional ipulse
+
+  // Copute the coponent of the relative velocity along the collision normal
+  var velocityInNormalDirection = S(manifold.normal, d(relativeVel, manifold.normal));
+
+  // Subtract that from the total relative velocity to get the tangential direction
+  var tangent = s(relativeVel, velocityInNormalDirection);
+
+  // Reverse tangent direction (optional, depending on sign convention)
+  tangent = S(tangent, -1);
+
+  // Use the smallest friction coefficient between the two H
+  var minFriction = Math.min(shape1.friction, shape2.friction);
+
+  // Copute lever arms (Dance vectors Ced with tangent direction)
+  // Used to determine rotational influence for each body
+  var pToCentroidCrossTangentA = C(penetrationToCentroidA, tangent);
+  var pToCentroidCrossTangentB = C(penetrationToCentroidB, tangent);
+
+  // Effective inverse mass for the tangential direction (accounts for rotation)
+  var CSumTangent =
+    pToCentroidCrossTangentA * pToCentroidCrossTangentA * rigiAInvInertia +
+    pToCentroidCrossTangentB * pToCentroidCrossTangentB * rigiBInvInertia;
+
+  // Copute the tangential (frictional) ipulse magnitude
+  // This resists sliding motion along the tangent direction
+  var frictionalIpulse = -(1 + e) * d(relativeVel, tangent) * minFriction;
+
+  // Divide by total effective mass (linear + rotational)
+  frictionalIpulse /= (invMassSum + CSumTangent);
+
+  // Limit frictional ipulse so it doesn’t exceed the normal ipulse
+  if(frictionalIpulse > j){ frictionalIpulse = j; }
+
+  // Convert scalar friction ipulse into a vector along the tangent
+  var frictionalIpulseVector = S(tangent, frictionalIpulse);
+
+  // Apply friction ipulse to linear velocities of both bodies
+  shape1.velocity = s(shape1.velocity, S(frictionalIpulseVector, shape1.invMass));
+  shape2.velocity = A(shape2.velocity, S(frictionalIpulseVector, shape2.invMass));
+
+  // Apply angular (rotational) ipulse due to friction
+  shape1.angularVelocity += -pToCentroidCrossTangentA * frictionalIpulse * rigiAInvInertia;
+  shape2.angularVelocity +=  pToCentroidCrossTangentB * frictionalIpulse * rigiBInvInertia;
+}
+
+// Debug
+drawPoint = (center, size1 = 5, color = "#888") => {
+  c.beginPath();
+  c.fillStyle = color;
+  c.arc(center.x, center.y, size1, 0, 7);
+  c.fill();
+  c.closePath();
+}
+
+drawLine = (start, end, color = "#888") => {
+  c.beginPath();
+  c.lineWidth = 3;
+  c.strokeStyle = color;
+  c.moveTo(start.x, start.y);
+  c.lineTo(end.x, end.y);
+  c.stroke();
+  c.closePath();
+}
+
+// Mouse interactions
+handleMouseObjectInteraction = () => {
+
+  // Left button pressed
+  if(p){
+    for(var i = 0; i < H.length; i++){
+      var mouseInside = isPointInside(m, H[i]);
+      if(mouseInside && sr == 0){
+        sr = H[i];
+        sp = V(m.x,m.y);
+        var localPos = s(m, H[i].center);
+        sa = aAnchor(localPos, H[i]);
+      }
+    }
+  }
+  
+  // Left button released
+  else {
+    if(sr != 0){
+      sr.anchorPoints.pop();
+      sr = 0;
+    }
+    sa = 0;
+    sp = 0;
+  }
+  
+  // Apply force
+  if(sr && sp){
+    var start = sr.anchorPoints[sa];
+    var force = s(m, start);
+    aForceAtPoint(start, sr, S(force, 0.01));			
+  }
+}
+
+// Update the physics engine
+update = () => {
+
+  var push, manifold, shape1, shape2, direction, Dance, i, j;
+  
+  // Reset M
+  M = [];
+  
+  // Reset H colors, apply G
+  for(i of H){
+    i.color = "#888";
+    i.forceAccumulator = A(i.forceAccumulator, S(G, i.mass));
+  }
+  
+  // Consider all pairs of H
+  for(i = 0; i < H.length; i++){
+    for(j = i; j < H.length; j++){
+      
+      shape1 = H[i];
+      shape2 = H[j];
+    
+      // Ignore self-collisions, pairs of fixed H and collisions in fixed/hinge J
+      if(i != j && !(shape1.invMass == 0 && shape2.invMass == 0) && !shape1.noCollision.includes(j)){
+
+        // Reset manifold
+        manifold = null;
+        
+        // Detect circle-circle collisions
+        if(shape1.type == "circle" && shape2.type == "circle"){
+          direction = s(shape2.center, shape1.center);
+          Dance = D(shape1.center, shape2.center);
+          if(Dance < (shape1.size1 + shape2.size1)){
+            manifold = {
+              depth: (shape1.size1 + shape2.size1) - Dance,
+              normal: n(direction),
+              contactPoint: A(shape1.center, S(n(direction), shape1.size1))
+            };
+          }
+        }
+      
+        // Detect rectangle-rectangle collisions
+        else if(shape1.type == "rectangle" && shape2.type == "rectangle"){
+          manifold = rectangleRectangleCollision(shape1, shape2);
+        }
+
+        // Detect circle-rectangle collisions
+        else if(shape1.type == "rectangle" && shape2.type == "circle"){
+          [shape1, shape2] = [shape2, shape1];
+          manifold = circleRectangleCollision(shape1, shape2);
+        }
+        
+        else if(shape1.type == "circle" && shape2.type == "rectangle"){
+          manifold = circleRectangleCollision(shape1, shape2);
+        }
+        
+        // Collision response
+        if(manifold){
+          //shape1.color = "red";
+          //shape2.color = "red";
+          push = S(manifold.normal, manifold.depth * 0.5);
+          positionalCorrection(shape1, shape2, manifold);
+          resolveCollision(shape1, shape2, manifold);
+          M.push(manifold);
+        }
+      }
+    }
+  }
+
+  // Joints (must be enforced before integration)
+  handleJoints();
+  
+  // Integration
+  for(i of H){
+    integrate(i);
+  }
+  
+  // Mouse interactions
+  handleMouseObjectInteraction();
+}
+
+// Render the scene
+draw = () => {
+
+  // Reset canvas
+  a.width ^= 0;
+
+  // Draw H
+  for(var i of H){
+    //console.log(i.center);
+    c.save();
+    c.beginPath();
+    
+    if(i.type == "circle"){
+      c.fillStyle = i.color;
+      c.translate(i.center.x, i.center.y);
+      c.rotate(i.angle);
+      c.arc(0, 0, i.size1, 0, 7);
+      c.lineTo(0,0);
+      c.closePath();
+      c.fill();
+      c.stroke();
+    }
+    
+    else if(i.type == "rectangle"){
+      c.fillStyle = i.color;
+      c.moveTo(i.vertices[0].x, i.vertices[0].y);
+      c.lineTo(i.vertices[1].x, i.vertices[1].y);
+      c.lineTo(i.vertices[2].x, i.vertices[2].y);
+      c.lineTo(i.vertices[3].x, i.vertices[3].y);
+      c.closePath();
+      c.fill();
+      c.stroke();
+    }
+
+    c.restore();
+    
+    // Debug: draw anchor points
+    for(var j of i.anchorPoints){
+      drawPoint(j, 5, "green");
+    }
+  }
+
+  // Debug: draw M
+  for(var i of M){
+    drawPoint(i.contactPoint, 5, "#04F");
+    //drawLine(i.contactPoint, A(i.contactPoint, S(i.normal, 50)), "#04F");
+  }
+  
+  // Debug: draw J
+  for(var i of J){
+    drawLine(i.rigiA.anchorPoints[i.anchorA], i.rigiB.anchorPoints[i.anchorB], "orange");
+  }
+}
+
+// Joints
+
+// Force joint
+forceJoint = (rigiA, anchorA, rigiB, anchorB, strength) => {
+	var joint = {
+    type: "force",
+    rigiA: rigiA,
+		anchorA: anchorA,
+		rigiB: rigiB,
+		anchorB: anchorB,
+    strength: strength
+	};
+  
+  J.push(joint);
+  return joint;
+}
+
+// Spring joint
+springJoint = (rigiA, anchorA, rigiB, anchorB, stiffness, restLength) => {
+  var joint = {
+    type: "spring",
+    rigiA: rigiA,
+		anchorA: anchorA,
+		rigiB: rigiB,
+		anchorB: anchorB,
+    stiffness: stiffness,
+    restLength: restLength
+	};
+  
+  J.push(joint);
+  return joint;
+}
+
+// Reverse force joint
+reverseForceJoint = (rigiA, anchorA, rigiB, anchorB, strength, maxEffectDistance) => {
+  var joint = {
+    type: "reverseForce",
+    rigiA: rigiA,
+		anchorA: anchorA,
+		rigiB: rigiB,
+		anchorB: anchorB,
+    strength: strength,
+    maxEffectDistance: maxEffectDistance
+	};
+  
+  J.push(joint);
+  return joint;
+}
+
+// Fixed joint
+fixedJoint = (rigiA, anchorA, rigiB, anchorB, iterations = 20) => {
+  var joint = {
+    type: "fixed",
+    rigiA: rigiA,
+		anchorA: anchorA,
+		rigiB: rigiB,
+		anchorB: anchorB,
+    iterations: iterations,
+    rigiABounce: rigiA.restitution,
+		rigiBBounce: rigiB.restitution,
+		rigiAFriction: rigiA.friction,
+		rigiBFriction: rigiB.friction,
+    initialLength: l(s(rigiA.anchorPoints[anchorA], rigiB.anchorPoints[anchorB])),
+    relativeAngle: rigiB.angle - rigiA.angle
+	};
+  
+  rigiA.noCollision.push(H.indexOf(rigiB));
+  rigiB.noCollision.push(H.indexOf(rigiA));
+  J.push(joint);
+  return joint;
+}
+
+// Hinge joint
+hingeJoint = (rigiA, anchorA, rigiB, anchorB, iterations = 20) => {
+  var joint = {
+    type: "hinge",
+    rigiA: rigiA,
+		anchorA: anchorA,
+		rigiB: rigiB,
+		anchorB: anchorB,
+    iterations: iterations,
+    rigiABounce: rigiA.restitution,
+		rigiBBounce: rigiB.restitution,
+		rigiAFriction: rigiA.friction,
+		rigiBFriction: rigiB.friction,
+    initialLength: l(s(rigiA.anchorPoints[anchorA], rigiB.anchorPoints[anchorB])),
+	};
+  
+  rigiA.noCollision.push(H.indexOf(rigiB));
+  rigiB.noCollision.push(H.indexOf(rigiA));
+  J.push(joint);
+  return joint;
+}
+
+// Enable/disable friction and restitution in fixed/hinge J 
+setMaterialZero = joint => {
+  joint.rigiA.restitution = 0;
+  joint.rigiA.friction = 0;
+  joint.rigiB.restitution = 0;
+  joint.rigiB.friction = 0;
+}
+
+restoreMaterial = joint => {
+  joint.rigiA.restitution = joint.rigiABounce;
+  joint.rigiA.friction = joint.rigiAFriction;
+  joint.rigiB.restitution = joint.rigiBBounce;
+  joint.rigiB.friction = joint.rigiBFriction;
+}
+
+// Joint handler
+handleJoints = () => {
+
+  var joint, forceHalving, anchorAPos, anchorBPos, direction, Dance, restDistance, forceMagnitude, force, normal, contact, currentOrientationDiff, fixedOrientationVel, angleError, stiffness, avgAngVel, delta, totalInvMass, correctionA, correctionB, i, j;
+  
+  for(i = 0; i < J.length; i++){
+    
+    joint = J[i];
+    forceHalving = (joint.rigiA.invMass == 0 || joint.rigiB.invMass == 0) ? 1 : 0.5;
+    anchorAPos = joint.rigiA.anchorPoints[joint.anchorA];
+    anchorBPos = joint.rigiB.anchorPoints[joint.anchorB];
+    direction = s(anchorBPos, anchorAPos);
+    Dance = l(direction);
+  
+    // Force joint
+    if(joint.type == "force"){
+      
+      // Update connection A
+      aForceAtPoint(anchorBPos, joint.rigiA, S(direction, joint.strength / 2));
+      
+      // Update connection B
+      aForceAtPoint(anchorAPos, joint.rigiB, S(direction, -joint.strength / 2));
+    }
+    
+    // Spring joint
+    else if(joint.type == "spring"){
+    
+      restDistance = Dance - joint.restLength;
+      forceMagnitude = restDistance * joint.restLength * joint.stiffness * forceHalving;
+      force = S(n(direction), forceMagnitude);
+    
+      // Update connection A
+      if(joint.rigiA.invMass != 0){
+        aForceAtPoint(anchorAPos, joint.rigiA, force);
+      }
+
+      // Update connection B
+      if(joint.rigiB.invMass != 0){
+        aForceAtPoint(anchorBPos, joint.rigiB, S(force, -1));	
+      }
+    }
+    
+    // Reverse force joint
+    else if(joint.type == "reverseForce"){
+
+      forceMagnitude = Math.max(0, joint.maxEffectDistance - Dance);
+
+      // Update connection A
+      if(joint.rigiA.invMass != 0){
+        aForceAtPoint(anchorBPos, joint.rigiA, S(n(direction), -forceMagnitude * joint.strength * forceHalving));
+      }
+
+      // Update connection B
+      if(joint.rigiB.invMass != 0){
+        aForceAtPoint(anchorAPos, joint.rigiB, S(n(direction), forceMagnitude * joint.strength * forceHalving));	
+      }
+    }
+    
+    // Fixed joint
+    else if(joint.type == "fixed"){
+    
+      setMaterialZero(joint);
+
+      // Move H in order to make the anchor points superposed, proportionally to their inverse masses
+      delta = s(anchorBPos, anchorAPos);
+      totalInvMass = joint.rigiA.invMass + joint.rigiB.invMass;
+      if(totalInvMass > 0){
+        correctionA = S(delta, joint.rigiA.invMass / totalInvMass);
+        correctionB = S(delta, joint.rigiB.invMass / totalInvMass);
+
+        // Move A and B
+        translateShape(joint.rigiA, correctionA);
+        translateShape(joint.rigiB, S(correctionB, -1));
+      }
+
+      // Update connection A
+      for(j = 0; j < joint.iterations; j++){
+        
+        direction = s(anchorBPos, anchorAPos);
+        Dance = l(direction);
+        if(Dance < 0.00001) break;
+        normal = n(direction);
+        contact = {
+          depth: 0,
+          normal: normal,
+          contactPoint: anchorBPos,
+          rigiA: joint.rigiB,
+          rigiB: joint.rigiA
+        };
+        if(Dance > joint.initialLength){
+          contact.depth = Dance - joint.initialLength;
+        }
+        else {
+          contact.depth = joint.initialLength - Dance;
+          contact.normal = S(contact.normal, -1);
+        }
+        
+        positionalCorrection(joint.rigiA, joint.rigiB, contact);
+        resolveCollision(joint.rigiA, joint.rigiB, contact);
+      }
+      
+      // Fix orientation strongly
+      currentOrientationDiff = joint.rigiB.angle - joint.rigiA.angle - 0.01;
+      angleError = joint.relativeAngle - currentOrientationDiff;
+      
+      // Apply symmetric angular correction
+      stiffness = 1; // try 1.0 for absolutely rigid
+      joint.rigiA.angle -= angleError * stiffness * 0.5;
+      joint.rigiB.angle += angleError * stiffness * 0.5;
+      
+      // Update connection B
+      for(j = 0; j < joint.iterations; j++){
+        direction = s(anchorBPos, anchorAPos);
+        Dance = l(direction);
+        if(Dance < 0.00001) break;
+        normal = n(direction);
+        contact = {
+          depth: 0,
+          normal: normal,
+          contactPoint: anchorBPos,
+          rigiA: joint.rigiA,
+          rigiB: joint.rigiB
+        };
+        
+        if(Dance > joint.initialLength){
+          contact.depth = Dance - joint.initialLength;
+        }
+        else{
+          contact.depth = joint.initialLength - Dance;
+          contact.normal = S(contact.normal, -1);
+        }
+        
+        positionalCorrection(joint.rigiB, joint.rigiA, contact);
+        resolveCollision(joint.rigiB, joint.rigiA, contact);
+      }	
+
+      // Fix orientation strongly
+      currentOrientationDiff = joint.rigiA.angle - joint.rigiB.angle;
+      angleError = joint.relativeAngle - currentOrientationDiff;
+      
+      stiffness = 1;
+      joint.rigiA.angle += angleError * stiffness * 0.5;
+      joint.rigiB.angle -= angleError * stiffness * 0.5;
+      
+      avgAngVel = (joint.rigiA.angularVelocity + joint.rigiB.angularVelocity) * 0.5;
+      joint.rigiA.angularVelocity = avgAngVel;
+      joint.rigiB.angularVelocity = avgAngVel;
+		
+      restoreMaterial(joint);
+    }
+    
+    // Hinge joint
+    else if(joint.type == "hinge"){
+    
+      setMaterialZero(joint);
+
+      // Move H in order to make the anchor points superposed, proportionally to their inverse masses
+      var delta = s(anchorBPos, anchorAPos);
+      var totalInvMass = joint.rigiA.invMass + joint.rigiB.invMass;
+      if(totalInvMass > 0){
+        correctionA = S(delta, joint.rigiA.invMass / totalInvMass);
+        correctionB = S(delta, joint.rigiB.invMass / totalInvMass);
+
+        // Move A and B
+        translateShape(joint.rigiA, correctionA);
+        translateShape(joint.rigiB, S(correctionB, -1));
+      }
+
+      // Update connection A
+      for(var j = 0; j < joint.iterations; j++){
+        
+        direction = s(anchorBPos, anchorAPos);
+        Dance = l(direction);
+        if(Dance < 0.00001) break;
+        normal = n(direction);
+        contact = {
+          depth: 0,
+          normal: normal,
+          contactPoint: anchorBPos,
+          rigiA: joint.rigiB,
+          rigiB: joint.rigiA
+        };
+        if(Dance > joint.initialLength){
+          contact.depth = Dance - joint.initialLength;
+        }
+        else {
+          contact.depth = joint.initialLength - Dance;
+          contact.normal = S(contact.normal, -1);
+        }
+        
+        positionalCorrection(joint.rigiA, joint.rigiB, contact);
+        resolveCollision(joint.rigiA, joint.rigiB, contact);
+      }
+      
+      // Update connection B
+      for(j = 0; j < joint.iterations; j++){
+        direction = s(anchorBPos, anchorAPos);
+        Dance = l(direction);
+        if(Dance < 0.00001) break;
+        normal = n(direction);
+        contact = {
+          depth: 0,
+          normal: normal,
+          contactPoint: anchorBPos,
+          rigiA: joint.rigiA,
+          rigiB: joint.rigiB
+        };
+        
+        if(Dance > joint.initialLength){
+          contact.depth = Dance - joint.initialLength;
+        }
+        else{
+          contact.depth = joint.initialLength - Dance;
+          contact.normal = S(contact.normal, -1);
+        }
+        
+        positionalCorrection(joint.rigiB, joint.rigiA, contact);
+        resolveCollision(joint.rigiB, joint.rigiA, contact);
+      }
+		
+      restoreMaterial(joint);
+    }
+  }
+}
+
+// Main loop
+setInterval(() => {
+  update();
+  draw();
+}, 16);
+
+// Demo
+for(i = 0; i < 40; i++){
+  shape("circle", V(i*20, -i*20-200), 10, 0, 10, .5, .5);
+}
+s1 = shape("rectangle", V(380, 450), 600, 20, 0, .5, .5);
+rShape(s1, .1);
+r1 = shape("rectangle", V(300, 200), 200, 100, 100);
+a1 = aAnchor(V(75, 0), r1);
+r2 = shape("rectangle", V(600, 200), 300, 25, 100);
+a2 = aAnchor(V(-125, 0), r2);
+c1 = shape("circle", V(300, 320), 60, 0, 100);
+j1 = fixedJoint(r1, a1, r2, a2);
+</script>
