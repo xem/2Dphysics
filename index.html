@@ -221,7 +221,7 @@ cp=(t,n,r=null,e=9e9,l=null,o=0)=>{
   for(;o<4;o++){
   
     // if no support point found (no collision), return null
-    if((l=sp(t.normals[o],t.vertices[o],n.vertices))==null)return l;
+    if((l=fs(t.normals[o],t.vertices[o],n.vertices))==null)return l;
     
     // create/replace the manifold r if this axis has the smallest penetration depth
     l.depth<e&&(
@@ -240,7 +240,7 @@ cp=(t,n,r=null,e=9e9,l=null,o=0)=>{
 // Find a support point
 // find which vertex from the other rectangle penetrates the deepest in a given axis
 // params: normal, point (from rect1), vertices (from rect2)
-sp=(normal,point,vertices,e=0,l=null,u=null,o=0)=>{
+fs=(normal,point,vertices,e=0,l=null,u=null,o=0)=>{
 
   // for each vertex
   for(;o<4;o++)
@@ -312,129 +312,70 @@ crc=(circle,rect,t,c=0)=>{
 },
 
 // Correct positioning
-positionalCorrection = (shape1, shape2, manifold) => {
+// Move shapes away from each other according to a collision manifold and proportionally to their inverse mass
+// params: shape1, shape2, manifold
+positionalCorrection=(shape1,shape2,manifold,v)=>{
+  
+  // compute total correction amount
+  v=S(manifold.normal,manifold.depth/(shape1.invMass+shape2.invMass));
+  
+  // tanslate shapes (if they're not fixed)
+  shape1.invMass>0&&ts(shape1,S(v,-shape1.invMass)),
+  shape2.invMass>0&&ts(shape2,S(v,shape2.invMass))
+};
 
-  var correction = 0.7;
-  var correctionAmount = manifold.depth / (shape1.invMass + shape2.invMass) * correction;
-  var correctionVector = S(manifold.normal, correctionAmount);
-  if(shape1.invMass > 0){
-    ts(shape1, S(correctionVector, -shape1.invMass));
-  }
-  if(shape2.invMass > 0){
-    ts(shape2, S(correctionVector, shape2.invMass));
-  }
-}
+// "Scalar cross" helper function
+// performs a scalar cross between an angular velocity and penetration vector
+// params: shape, penetration
+sc=(shape,penetration)=>V(-shape.angularVelocity*penetration.y,shape.angularVelocity*penetration.x),
 
 // Resolve collision
-resolveCollision = (shape1, shape2, manifold) => {
+// params: shape1, shape2, manifold
+rc=(shape1,shape2,manifold,a,o,v,y,m,u,M,g,f,h,x,F,P,b,j,p,q)=>{
 
-  // If both objects are kinematic, skip
-  if(shape1.invMass == 0 && shape2.invMass == 0) return;
+  // skip if both shapes are fixed
+  shape1.invMass===0&&shape2.invMass===0||(
   
-  // Normal ipulse
-
-  // Vectors from each object's center to the contact point
-  var penetrationToCentroidA = s(manifold.contactPoint, shape1.center);
-  var penetrationToCentroidB = s(manifold.contactPoint, shape2.center);
-
-  // Linear velocity contribution at the contact point due to angular velocity
-  var angularVelocityPenetrationCentroidA = V(
-    -shape1.angularVelocity * penetrationToCentroidA.y,
-     shape1.angularVelocity * penetrationToCentroidA.x
-  );
-  var angularVelocityPenetrationCentroidB = V(
-    -shape2.angularVelocity * penetrationToCentroidB.y,
-     shape2.angularVelocity * penetrationToCentroidB.x
-  );
-
-  // Total velocity at the contact point = linear + rotational
-  var relativeVelocityA = A(shape1.velocity, angularVelocityPenetrationCentroidA);
-  var relativeVelocityB = A(shape2.velocity, angularVelocityPenetrationCentroidB);
-
-  // Relative velocity between both contact points
-  var relativeVel = s(relativeVelocityB, relativeVelocityA);
-
-  // Project relative velocity onto the collision normal
-  var velocityInNormal = d(relativeVel, manifold.normal);
-
-  // If the objects are moving apart (positive relative velocity along the normal), skip
-  if(velocityInNormal > 0) return;
-
-  // Restitution coefficient (bounciness)
-  var e = Math.min(shape1.restitution, shape2.restitution);
-
-  // Copute the "lever arm" C product (how far from the center the ipulse acts)
-  var pToCentroidCrossNormalA = C(penetrationToCentroidA, manifold.normal);
-  var pToCentroidCrossNormalB = C(penetrationToCentroidB, manifold.normal);
-
-  // Effective inverse mass including both linear and rotational contributions
-  var invMassSum = shape1.invMass + shape2.invMass;
-  var rigiAInvInertia = shape1.invInertia;
-  var rigiBInvInertia = shape2.invInertia;
-  var CNSum =
-    pToCentroidCrossNormalA * pToCentroidCrossNormalA * rigiAInvInertia +
-    pToCentroidCrossNormalB * pToCentroidCrossNormalB * rigiBInvInertia;
-
-  // Copute the scalar ipulse magnitude (j)
-  var j = -(1 + e) * velocityInNormal;
-  j /= (invMassSum + CNSum);
-
-  // Convert scalar ipulse into a vector along the collision normal
-  var ipulseVector = S(manifold.normal, j);
-
-  // Apply ipulse to linear velocities (in opposite directions)
-  shape1.velocity = s(shape1.velocity, S(ipulseVector, shape1.invMass));
-  shape2.velocity = A(shape2.velocity, S(ipulseVector, shape2.invMass));
-
-  // Apply rotational ipulse based on lever arm and inverse inertia
-  shape1.angularVelocity += -pToCentroidCrossNormalA * j * rigiAInvInertia;
-  shape2.angularVelocity +=  pToCentroidCrossNormalB * j * rigiBInvInertia;
-
-  // Frictional ipulse
-
-  // Copute the coponent of the relative velocity along the collision normal
-  var velocityInNormalDirection = S(manifold.normal, d(relativeVel, manifold.normal));
-
-  // Subtract that from the total relative velocity to get the tangential direction
-  var tangent = s(relativeVel, velocityInNormalDirection);
-
-  // Reverse tangent direction (optional, depending on sign convention)
-  tangent = S(tangent, -1);
-
-  // Use the smallest friction coefficient between the two H
-  var minFriction = Math.min(shape1.friction, shape2.friction);
-
-  // Copute lever arms (Dance vectors Ced with tangent direction)
-  // Used to determine rotational influence for each body
-  var pToCentroidCrossTangentA = C(penetrationToCentroidA, tangent);
-  var pToCentroidCrossTangentB = C(penetrationToCentroidB, tangent);
-
-  // Effective inverse mass for the tangential direction (accounts for rotation)
-  var CSumTangent =
-    pToCentroidCrossTangentA * pToCentroidCrossTangentA * rigiAInvInertia +
-    pToCentroidCrossTangentB * pToCentroidCrossTangentB * rigiBInvInertia;
-
-  // Copute the tangential (frictional) ipulse magnitude
-  // This resists sliding motion along the tangent direction
-  var frictionalIpulse = -(1 + e) * d(relativeVel, tangent) * minFriction;
-
-  // Divide by total effective mass (linear + rotational)
-  frictionalIpulse /= (invMassSum + CSumTangent);
-
-  // Limit frictional ipulse so it doesn’t exceed the normal ipulse
-  if(frictionalIpulse > j){ frictionalIpulse = j; }
-
-  // Convert scalar friction ipulse into a vector along the tangent
-  var frictionalIpulseVector = S(tangent, frictionalIpulse);
-
-  // Apply friction ipulse to linear velocities of both bodies
-  shape1.velocity = s(shape1.velocity, S(frictionalIpulseVector, shape1.invMass));
-  shape2.velocity = A(shape2.velocity, S(frictionalIpulseVector, shape2.invMass));
-
-  // Apply angular (rotational) ipulse due to friction
-  shape1.angularVelocity += -pToCentroidCrossTangentA * frictionalIpulse * rigiAInvInertia;
-  shape2.angularVelocity +=  pToCentroidCrossTangentB * frictionalIpulse * rigiBInvInertia;
-}
+    // if the objects are already moving apart from each other, return
+    // else, compute relative velocity (v: linear and a: rotational)
+    (y=d(v=s(A(shape2.velocity,sc(shape2,o=s(manifold.contactPoint,shape2.center))),A(shape1.velocity,sc(shape1,a=s(manifold.contactPoint,shape1.center)))),manifold.normal))>0||(
+    
+      // Normal impulse:
+      
+      // total restitution
+      m=Math.min(shape1.restitution,shape2.restitution),
+      
+      // "lever arm" cross product
+      u=C(a,manifold.normal),
+      M=C(o,manifold.normal),
+      
+      // compute scalar impulse magnitude F
+      F=S(manifold.normal,x=(-(1+m)*y)/((g=shape1.invMass+shape2.invMass)+(u*u*(f=shape1.invInertia)+M*M*(h=shape2.invInertia)))),
+      
+      // apply linear impulses (in opposite directions)
+      shape1.velocity=s(shape1.velocity,S(F,shape1.invMass)),
+      shape2.velocity=A(shape2.velocity,S(F,shape2.invMass)),
+      
+      // apply rotational impulses (alse opposite)
+      shape1.angularVelocity+=-u*x*f,
+      shape2.angularVelocity+=M*x*h,
+      
+      // Frictional impulse:
+      
+      // compute reverse tangent direction
+      P=S(s(v,S(manifold.normal,d(v,manifold.normal))),-1),
+      
+      // compute frictional impulse and don't let it exceed normal impulse
+      (p=(-(1+m)*d(v,P)*Math.min(shape1.friction,shape2.friction))/(g+((b=C(a,P))*b*f+(j=C(o,P))*j*h)))>x&&(p=x),
+      
+      // apply linear and rotational impulses
+      shape1.velocity=s(shape1.velocity,S(q=S(P,p),shape1.invMass)),
+      shape2.velocity=A(shape2.velocity,S(q,shape2.invMass)),
+      shape1.angularVelocity+=-b*p*f,
+      shape2.angularVelocity+=j*p*h
+    )
+  )
+},
 
 // Debug
 drawPoint = (center, size1 = 5, color = "#888") => {
@@ -550,7 +491,7 @@ update = () => {
           //shape2.color = "red";
           push = S(manifold.normal, manifold.depth * 0.5);
           positionalCorrection(shape1, shape2, manifold);
-          resolveCollision(shape1, shape2, manifold);
+          rc(shape1, shape2, manifold);
           M.push(manifold);
         }
       }
@@ -830,7 +771,7 @@ handleJoints = () => {
         }
         
         positionalCorrection(joint.rigiA, joint.rigiB, contact);
-        resolveCollision(joint.rigiA, joint.rigiB, contact);
+        rc(joint.rigiA, joint.rigiB, contact);
       }
       
       // Fix orientation strongly
@@ -865,7 +806,7 @@ handleJoints = () => {
         }
         
         positionalCorrection(joint.rigiB, joint.rigiA, contact);
-        resolveCollision(joint.rigiB, joint.rigiA, contact);
+        rc(joint.rigiB, joint.rigiA, contact);
       }	
 
       // Fix orientation strongly
@@ -923,7 +864,7 @@ handleJoints = () => {
         }
         
         positionalCorrection(joint.rigiA, joint.rigiB, contact);
-        resolveCollision(joint.rigiA, joint.rigiB, contact);
+        rc(joint.rigiA, joint.rigiB, contact);
       }
       
       // Update connection B
@@ -949,7 +890,7 @@ handleJoints = () => {
         }
         
         positionalCorrection(joint.rigiB, joint.rigiA, contact);
-        resolveCollision(joint.rigiB, joint.rigiA, contact);
+        rc(joint.rigiB, joint.rigiA, contact);
       }
 		
       restoreMaterial(joint);
