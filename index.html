@@ -37,7 +37,7 @@ shape=(
   mass=1,
   friction=0,
   restitution=1,
-  color,
+  color="#888",
 
   // inertia
   n=("circle"==type?mass*size1**2/2:mass*(size1**2+size2**2)/12), 
@@ -131,7 +131,7 @@ ts=(shape,offset,n)=>{
 // params: shape, angle (in radians)
 rs=(shape,angle,t)=>{
 
-  // update angle
+  // up angle
   shape.angle+=angle;
 
   // rectangles
@@ -314,7 +314,7 @@ crc=(circle,rect,t,c=0)=>{
 // Correct positioning
 // Move shapes away from each other according to a collision manifold and proportionally to their inverse mass
 // params: shape1, shape2, manifold
-positionalCorrection=(shape1,shape2,manifold,v)=>{
+pc=(shape1,shape2,manifold,v)=>{
   
   // compute total correction amount
   v=S(manifold.normal,manifold.depth/(shape1.invMass+shape2.invMass));
@@ -419,83 +419,88 @@ mi=(r,a,e,n,o)=>{
 }
 
 // Update the physics engine
-update = () => {
+up=(e,r,c,t,o,j=0,i)=>{
+  
+  // reset manifolds list
+  M=[];
 
-  var push, manifold, shape1, shape2, direction, Dance, i, j;
+  // consider all distinct pairs of shapes
+  for(;j<H.length;j++){
   
-  // Reset M
-  M = [];
-  
-  // Reset H colors, apply G
-  for(i of H){
-    i.color = "#888";
-    i.forceAccumulator = A(i.forceAccumulator, S(G, i.mass));
-  }
-  
-  // Consider all pairs of H
-  for(i = 0; i < H.length; i++){
-    for(j = i; j < H.length; j++){
-      
-      shape1 = H[i];
-      shape2 = H[j];
+    // r: shape1 (index j from 0 to H.length)
+    r=H[j];
     
-      // Ignore self-collisions, pairs of fixed H and collisions in fixed/hinge J
-      if(i != j && !(shape1.invMass == 0 && shape2.invMass == 0) && !shape1.noCollision.includes(j)){
-
-        // Reset manifold
-        manifold = null;
-        
-        // Detect circle-circle collisions
-        if(shape1.type == "circle" && shape2.type == "circle"){
-          direction = s(shape2.center, shape1.center);
-          Dance = D(shape1.center, shape2.center);
-          if(Dance < (shape1.size1 + shape2.size1)){
-            manifold = {
-              depth: (shape1.size1 + shape2.size1) - Dance,
-              normal: n(direction),
-              contactPoint: A(shape1.center, S(n(direction), shape1.size1))
-            };
-          }
-        }
+    // add (gravity * mass) to shape1
+    r.forceAccumulator=A(r.forceAccumulator,S(G,r.mass));
+    
+    for(i=j;i<H.length;i++){
+    
+      // c: shape2 (index i from j to H.length)
+      c=H[i],
       
-        // Detect rectangle-rectangle collisions
-        else if(shape1.type == "rectangle" && shape2.type == "rectangle"){
-          manifold = rr(shape1, shape2);
-        }
-
-        // Detect circle-rectangle collisions
-        else if(shape1.type == "rectangle" && shape2.type == "circle"){
-          [shape1, shape2] = [shape2, shape1];
-          manifold = cr(shape1, shape2);
-        }
+      // ignore self-collisions, pairs of fixed shapes and collisions in fixed/hinge joints
+      j===i||r.invMass===0&&c.invMass===0||r.noCollision.includes(i)||
+      (
         
-        else if(shape1.type == "circle" && shape2.type == "rectangle"){
-          manifold = cr(shape1, shape2);
-        }
+        // reset manifold
+        e=null,
         
-        // Collision response
-        if(manifold){
-          //shape1.color = "red";
-          //shape2.color = "red";
-          push = S(manifold.normal, manifold.depth * 0.5);
-          positionalCorrection(shape1, shape2, manifold);
-          rc(shape1, shape2, manifold);
-          M.push(manifold);
-        }
-      }
+        // circle-circle collision
+        r.type==="circle"&&c.type==="circle"
+        ?(
+          
+          // vector between circles centers
+          t=s(c.center,r.center),
+          
+          // if distance between centers is smaller than sum of radii: collision
+          (o=l(t))<r.size1+c.size1&&(
+            
+            // create manifold
+            e={
+              depth:r.size1+c.size1-o,
+              normal:n(t),
+              contactPoint:A(r.center,S(n(t),r.size1))
+            }
+          )
+        )
+        
+        // rectangle-rectangle-rectangle collision
+        :r.type==="rectangle"&&c.type==="rectangle"
+        ?e=rr(r,c)
+        
+        // rectangle-circle collision
+        :r.type==="rectangle"&&c.type==="circle"
+        
+        // inverse r and c and check circle-rectangle collision
+        ?([r,c]=[c,r],e=cr(r,c))
+        
+        // circle-rectangle collision
+        :r.type==="circle"&&c.type==="rectangle"&&(e=cr(r,c)),
+        
+        // if a manifold is present: there's a collision
+        e&&(
+        
+          // correct positioning
+          pc(r,c,e),
+          
+          // resolve collision
+          rc(r,c,e),
+          
+          // add manifold to manifolds list (debug only)
+          M.push(e)
+        )
+      );
     }
   }
 
-  // Joints (must be enforced before integration)
-  handleJoints();
-  
-  // Integration
-  for(i of H){
-    si(i);
-  }
-  
-  // Mouse interactions
+  // integrate all shapes
+  for(j of H)si(j);
+
+  // handle mouse interactions
   mi();
+  
+  // handle joints
+  hj();  
 }
 
 // Render the scene
@@ -662,7 +667,7 @@ restoreMaterial = joint => {
 }
 
 // Joint handler
-handleJoints = () => {
+hj = () => {
 
   var joint, forceHalving, anchorAPos, anchorBPos, direction, Dance, restDistance, forceMagnitude, force, normal, contact, currentOrientationDiff, fixedOrientationVel, angleError, stiffness, avgAngVel, delta, totalInvMass, correctionA, correctionB, i, j;
   
@@ -758,7 +763,7 @@ handleJoints = () => {
           contact.normal = S(contact.normal, -1);
         }
         
-        positionalCorrection(joint.rigiA, joint.rigiB, contact);
+        pc(joint.rigiA, joint.rigiB, contact);
         rc(joint.rigiA, joint.rigiB, contact);
       }
       
@@ -793,7 +798,7 @@ handleJoints = () => {
           contact.normal = S(contact.normal, -1);
         }
         
-        positionalCorrection(joint.rigiB, joint.rigiA, contact);
+        pc(joint.rigiB, joint.rigiA, contact);
         rc(joint.rigiB, joint.rigiA, contact);
       }	
 
@@ -851,7 +856,7 @@ handleJoints = () => {
           contact.normal = S(contact.normal, -1);
         }
         
-        positionalCorrection(joint.rigiA, joint.rigiB, contact);
+        pc(joint.rigiA, joint.rigiB, contact);
         rc(joint.rigiA, joint.rigiB, contact);
       }
       
@@ -877,7 +882,7 @@ handleJoints = () => {
           contact.normal = S(contact.normal, -1);
         }
         
-        positionalCorrection(joint.rigiB, joint.rigiA, contact);
+        pc(joint.rigiB, joint.rigiA, contact);
         rc(joint.rigiB, joint.rigiA, contact);
       }
 		
@@ -888,7 +893,7 @@ handleJoints = () => {
 
 // Main loop
 setInterval(() => {
-  update();
+  up();
   draw();
 }, 16);
 
