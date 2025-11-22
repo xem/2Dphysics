@@ -628,7 +628,7 @@ handleMouseObjectInteraction = () => {
 // Update the physics engine
 update = () => {
 
-  var push, manifold, shape1, shape2, direction, distance, i, j;
+  var push, manifold, shape1, shape2, direction, distance, i, j, tmp;
   
   // Reset manifolds
   manifolds = [];
@@ -672,7 +672,7 @@ update = () => {
 
         // Detect circle-rectangle collisions
         else if(shape1.type == "rectangle" && shape2.type == "circle"){
-          [shape1, shape2] = [shape2, shape1];
+          tmp = shape1; shape1 = shape2; shape2 = tmp;
           manifold = circleRectangleCollision(shape1, shape2);
         }
         

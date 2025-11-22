@@ -269,18 +269,18 @@ fs=(normal,point,vertices,e=0,l=null,u=null,o=0)=>{
 },
 
 // Detect collision between a circle and a rectangle
-// params: circle, rect
-cr=(circle,rect)=>{
+// params: circle, rect, normalscale
+cr=(circle,rect,normalscale=1)=>{
 
   // try to detect a collision between the circle and the rectangle's edges
   // if no edge collision is found, test against the rectangle's corners
   // return the resulting contact information (if any)
-  return cre(circle,rect)||crc(circle,rect);
+  return cre(circle,rect,-normalscale)||crc(circle,rect,normalscale);
 },
 
 // Detect a collision between a circle and a rectangle's edges
-// params: circle, rectangle
-cre=(circle,rect,t,c,i=null,v=null,o=0,z,u)=>{
+// params: circle, rectangle, normalscale
+cre=(circle,rect,normalscale,t,c,i=null,v=null,o=0,z,u)=>{
   
   // for each edge
   for(;o<4;o++)
@@ -308,20 +308,20 @@ cre=(circle,rect,t,c,i=null,v=null,o=0,z,u)=>{
   return u-circle.size1<0
   ?{
     depth:-(u-circle.size1),
-    normal:S(v,-1),
+    normal:S(v,normalscale),
     contactPoint:A(circle.center,S(v,-circle.size1))
   }
   :null
 },
 
 // Detect a collision between a circle and a rectangle's vertices
-// params: circle, rectangle
-crc=(circle,rect,t,c=0)=>{
+// params: circle, rectangle, normalscale
+crc=(circle,rect,normalscale,t,c=0)=>{
   for(;c<4;c++)
     if(t=s(rect.vertices[c],circle.center),l(t)<circle.size1)
       return{
         depth:circle.size1-l(t),
-        normal:n(t),
+        normal:S(n(t),normalscale),
         contactPoint:rect.vertices[c]
       };
   return null
@@ -333,7 +333,7 @@ crc=(circle,rect,t,c=0)=>{
 pc=(shape1,shape2,manifold,v)=>{
   
   // compute total correction amount
-  v=S(manifold.normal,manifold.depth/(shape1.invMass+shape2.invMass));
+  v=S(manifold.normal,manifold.depth/(shape1.invMass+shape2.invMass)*.7);
   
   // tanslate shapes (if they're not fixed)
   shape1.invMass>0&&ts(shape1,S(v,-shape1.invMass)),
@@ -441,7 +441,9 @@ up=(e,r,c,t,o,j=0,i)=>{
   M=[];
 
   // consider all distinct pairs of shapes
-  for(;j<H.length;j++){
+  for(j=0;j<H.length;j++){
+  
+    
   
     // r: shape1 (index j from 0 to H.length)
     r=H[j];
@@ -487,8 +489,8 @@ up=(e,r,c,t,o,j=0,i)=>{
         // rectangle-circle collision
         :r.type==="rectangle"&&c.type==="circle"
         
-        // inverse r and c and check circle-rectangle collision
-        ?([r,c]=[c,r],e=cr(r,c))
+        // check circle-rectangle collision and inverse the normal
+        ?(e=cr(c,r,-1))
         
         // circle-rectangle collision
         :r.type==="circle"&&c.type==="rectangle"&&(e=cr(r,c)),
@@ -545,344 +547,220 @@ dr=(e,r)=>{
     e.anchorPoints))
       dp(r,"green");
   for(e of M)
-    dp(e.contactPoint,"#04F");
+    //dp(e.contactPoint,"#04F");
   for(e of J)
     dl(e.rigiA.anchorPoints[e.anchorA],e.rigiB.anchorPoints[e.anchorB],"orange")
-};
+    
+  // TMP
+  c.fillStyle="#000";
+  c.font="bold 15px arial";
+  c.fillText("STRESS TEST", 100, 45);
+  c.fillText("FORCE JOINT", 350, 45);
+  c.fillText("SPRING JOINT", 600, 45);
+  c.fillText("REVERSE FORCE JOINT", 70, 325);
+  c.fillText("FIXED JOINT", 350, 325);
+  c.fillText("HINGE JOINT", 600, 325);
+},
 
 // Joints
 
 // Force joint
-forceJoint = (rigiA, anchorA, rigiB, anchorB, strength) => {
-	var joint = {
-    type: "force",
-    rigiA: rigiA,
-		anchorA: anchorA,
-		rigiB: rigiB,
-		anchorB: anchorB,
-    strength: strength
-	};
-  
-  J.push(joint);
-  return joint;
-}
+// params: shape1, anchor1, shape2, anchor2, strength
+forceJoint=(r,i,n,o,t)=>{
+  return J.push({
+    type:"force",
+    rigiA:r,
+    anchorA:i,
+    rigiB:n,
+    anchorB:o,
+    strength:t
+  })
+},
 
 // Spring joint
-springJoint = (rigiA, anchorA, rigiB, anchorB, stiffness, restLength) => {
-  var joint = {
-    type: "spring",
-    rigiA: rigiA,
-		anchorA: anchorA,
-		rigiB: rigiB,
-		anchorB: anchorB,
-    stiffness: stiffness,
-    restLength: restLength
-	};
-  
-  J.push(joint);
-  return joint;
-}
+// params: shape1, anchor1, shape2, anchor2, stiffness, restLength
+springJoint=(r,i,n,s,t,e)=>{
+  return J.push({
+    type:"spring",
+    rigiA:r,
+    anchorA:i,
+    rigiB:n,
+    anchorB:s,
+    stiffness:t,
+    restLength:e
+  });
+},
 
 // Reverse force joint
-reverseForceJoint = (rigiA, anchorA, rigiB, anchorB, strength, maxEffectDistance) => {
-  var joint = {
-    type: "reverseForce",
-    rigiA: rigiA,
-		anchorA: anchorA,
-		rigiB: rigiB,
-		anchorB: anchorB,
-    strength: strength,
-    maxEffectDistance: maxEffectDistance
-	};
-  
-  J.push(joint);
-  return joint;
-}
+// params: shape1, anchor1, shape2, anchor2
+reverseForceJoint=(r,e,t,c,i,n)=>{
+  return J.push({
+    type:"reverseForce",
+    rigiA:r,
+    anchorA:e,
+    rigiB:t,
+    anchorB:c,
+    strength:i,
+    maxEffectDistance:n
+  })
+},
 
 // Fixed joint
-fixedJoint = (rigiA, anchorA, rigiB, anchorB, iterations = 20) => {
-  var joint = {
-    type: "fixed",
-    rigiA: rigiA,
-		anchorA: anchorA,
-		rigiB: rigiB,
-		anchorB: anchorB,
-    iterations: iterations,
-    rigiABounce: rigiA.restitution,
-		rigiBBounce: rigiB.restitution,
-		rigiAFriction: rigiA.friction,
-		rigiBFriction: rigiB.friction,
-    initialLength: l(s(rigiA.anchorPoints[anchorA], rigiB.anchorPoints[anchorB])),
-    relativeAngle: rigiB.angle - rigiA.angle
-	};
-  
-  rigiA.noCollision.push(H.indexOf(rigiB));
-  rigiB.noCollision.push(H.indexOf(rigiA));
-  J.push(joint);
-  return joint;
-}
+// params: shape1, anchor1, shape2, anchor2, iterations
+fixedJoint=(i,n,o,r,t=20)=>{
+  return i.noCollision.push(H.indexOf(o)),o.noCollision.push(H.indexOf(i)),J.push(e={
+    type:"fixed",
+    rigiA:i,
+    anchorA:n,
+    rigiB:o,
+    anchorB:r,
+    iterations:t,
+    rigiABounce:i.restitution,
+    rigiBBounce:o.restitution,
+    rigiAFriction:i.friction,
+    rigiBFriction:o.friction,
+    initialLength:l(s(i.anchorPoints[n],o.anchorPoints[r])),
+    relativeAngle:o.angle-i.angle
+  })
+},
 
 // Hinge joint
-hingeJoint = (rigiA, anchorA, rigiB, anchorB, iterations = 20) => {
-  var joint = {
-    type: "hinge",
-    rigiA: rigiA,
-		anchorA: anchorA,
-		rigiB: rigiB,
-		anchorB: anchorB,
-    iterations: iterations,
-    rigiABounce: rigiA.restitution,
-		rigiBBounce: rigiB.restitution,
-		rigiAFriction: rigiA.friction,
-		rigiBFriction: rigiB.friction,
-    initialLength: l(s(rigiA.anchorPoints[anchorA], rigiB.anchorPoints[anchorB])),
-	};
-  
-  rigiA.noCollision.push(H.indexOf(rigiB));
-  rigiB.noCollision.push(H.indexOf(rigiA));
-  J.push(joint);
-  return joint;
-}
+// params: shape1, anchor1, shape2, anchor2, iterations
+hingeJoint=(i,n,o,r,t=20)=>{
+  return i.noCollision.push(H.indexOf(o)),o.noCollision.push(H.indexOf(i)),J.push(e={
+    type:"hinge",
+    rigiA:i,
+    anchorA:n,
+    rigiB:o,
+    anchorB:r,
+    iterations:t,
+    rigiABounce:i.restitution,
+    rigiBBounce:o.restitution,
+    rigiAFriction:i.friction,
+    rigiBFriction:o.friction,
+    initialLength:l(s(i.anchorPoints[n],o.anchorPoints[r]))
+  })
+},
 
-// Enable/disable friction and restitution in fixed/hinge J 
-setMaterialZero = joint => {
-  joint.rigiA.restitution = 0;
-  joint.rigiA.friction = 0;
-  joint.rigiB.restitution = 0;
-  joint.rigiB.friction = 0;
-}
+// Enable/disable friction and restitution in fixed/hinge joints 
+setMaterialZero=i=>{
+  i.rigiA.restitution=i.rigiA.friction=i.rigiB.restitution=i.rigiB.friction=0
+},
 
-restoreMaterial = joint => {
-  joint.rigiA.restitution = joint.rigiABounce;
-  joint.rigiA.friction = joint.rigiAFriction;
-  joint.rigiB.restitution = joint.rigiBBounce;
-  joint.rigiB.friction = joint.rigiBFriction;
-}
+restoreMaterial=i=>{
+  i.rigiA.restitution=i.rigiABounce,
+  i.rigiA.friction=i.rigiAFriction,
+  i.rigiB.restitution=i.rigiBBounce,
+  i.rigiB.friction=i.rigiBFriction
+},
 
 // Joint handler
-hj = () => {
-
-  var joint, forceHalving, anchorAPos, anchorBPos, direction, Dance, restDistance, forceMagnitude, force, normal, contact, currentOrientationDiff, fixedOrientationVel, angleError, stiffness, avgAngVel, delta, totalInvMass, correctionA, correctionB, i, j;
-  
-  for(i = 0; i < J.length; i++){
-    
-    joint = J[i];
-    forceHalving = (joint.rigiA.invMass == 0 || joint.rigiB.invMass == 0) ? 1 : 0.5;
-    anchorAPos = joint.rigiA.anchorPoints[joint.anchorA];
-    anchorBPos = joint.rigiB.anchorPoints[joint.anchorB];
-    direction = s(anchorBPos, anchorAPos);
-    Dance = l(direction);
-  
-    // Force joint
-    if(joint.type == "force"){
-      
-      // Update connection A
-      af(anchorBPos, joint.rigiA, S(direction, joint.strength / 2));
-      
-      // Update connection B
-      af(anchorAPos, joint.rigiB, S(direction, -joint.strength / 2));
+hj=(i,r,g,t,e,a,o,h,A,B,c,f,p,v,M,m,L,d,y)=>{
+  for(m=0;m<J.length;m++){
+    r=0==(i=J[m]).rigiA.invMass||0==i.rigiB.invMass?1:.5,g=i.rigiA.anchorPoints[i.anchorA],
+    t=i.rigiB.anchorPoints[i.anchorB],
+    e=s(t,g),
+    a=l(e);
+    if("force"==i.type)
+      af(t,i.rigiA,S(e,i.strength/2)),
+      af(g,i.rigiB,S(e,-i.strength/2));
+    else if("spring"==i.type)
+      o=(a-i.restLength)*i.restLength*i.stiffness*r,h=S(n(e),o),
+      0!=i.rigiA.invMass&&af(g,i.rigiA,h),
+      0!=i.rigiB.invMass&&af(t,i.rigiB,S(h,-1));
+    else if("reverseForce"==i.type)
+      o=Math.max(0,i.maxEffectDistance-a),
+      0!=i.rigiA.invMass&&af(t,i.rigiA,S(n(e),-o*i.strength*r)),
+      0!=i.rigiB.invMass&&af(g,i.rigiB,S(n(e),o*i.strength*r));
+    else if("fixed"==i.type){
+      setMaterialZero(i),
+      d=s(t,g),(L=i.rigiA.invMass+i.rigiB.invMass)>0&&(v=S(d,i.rigiA.invMass/L),
+      M=S(d,i.rigiB.invMass/L),
+      ts(i.rigiA,v),
+      ts(i.rigiB,S(M,-1)));
+      for(y=0;y<i.iterations&&(e=s(t,g),!((a=l(e))<1e-5));y++)
+        A={
+          depth:0,
+          normal:n(e),
+          contactPoint:t,
+          rigiA:i.rigiB,
+          rigiB:i.rigiA
+        },
+        a>i.initialLength?A.depth=a-i.initialLength:(
+          A.depth=i.initialLength-a,
+          A.normal=S(A.normal,-1)
+        ),
+        pc(i.rigiA,i.rigiB,A),
+        rc(i.rigiA,i.rigiB,A);
+      B=i.rigiB.angle-i.rigiA.angle-.01,
+      c=i.relativeAngle-B,
+      f=1,
+      i.rigiA.angle-=c*f*.5,
+      i.rigiB.angle+=c*f*.5;
+      for(y=0;y<i.iterations&&(e=s(t,g),!((a=l(e))<1e-5));y++)
+        A={
+          depth:0,
+          normal:n(e),
+          contactPoint:t,
+          rigiA:i.rigiA,
+          rigiB:i.rigiB
+        },
+        a>i.initialLength?A.depth=a-i.initialLength:(
+          A.depth=i.initialLength-a,
+          A.normal=S(A.normal,-1)
+        ),
+        pc(i.rigiB,i.rigiA,A),
+        rc(i.rigiB,i.rigiA,A);
+      B=i.rigiA.angle-i.rigiB.angle,
+      c=i.relativeAngle-B,
+      f=1,
+      i.rigiA.angle+=c*f*.5,
+      i.rigiB.angle-=c*f*.5,
+      p=.5*(i.rigiA.angularVelocity+i.rigiB.angularVelocity),
+      i.rigiA.angularVelocity=p,
+      i.rigiB.angularVelocity=p,
+      restoreMaterial(i)
     }
-    
-    // Spring joint
-    else if(joint.type == "spring"){
-    
-      restDistance = Dance - joint.restLength;
-      forceMagnitude = restDistance * joint.restLength * joint.stiffness * forceHalving;
-      force = S(n(direction), forceMagnitude);
-    
-      // Update connection A
-      if(joint.rigiA.invMass != 0){
-        af(anchorAPos, joint.rigiA, force);
-      }
-
-      // Update connection B
-      if(joint.rigiB.invMass != 0){
-        af(anchorBPos, joint.rigiB, S(force, -1));	
-      }
-    }
-    
-    // Reverse force joint
-    else if(joint.type == "reverseForce"){
-
-      forceMagnitude = Math.max(0, joint.maxEffectDistance - Dance);
-
-      // Update connection A
-      if(joint.rigiA.invMass != 0){
-        af(anchorBPos, joint.rigiA, S(n(direction), -forceMagnitude * joint.strength * forceHalving));
-      }
-
-      // Update connection B
-      if(joint.rigiB.invMass != 0){
-        af(anchorAPos, joint.rigiB, S(n(direction), forceMagnitude * joint.strength * forceHalving));	
-      }
-    }
-    
-    // Fixed joint
-    else if(joint.type == "fixed"){
-    
-      setMaterialZero(joint);
-
-      // Move H in order to make the anchor points superposed, proportionally to their inverse masses
-      delta = s(anchorBPos, anchorAPos);
-      totalInvMass = joint.rigiA.invMass + joint.rigiB.invMass;
-      if(totalInvMass > 0){
-        correctionA = S(delta, joint.rigiA.invMass / totalInvMass);
-        correctionB = S(delta, joint.rigiB.invMass / totalInvMass);
-
-        // Move A and B
-        ts(joint.rigiA, correctionA);
-        ts(joint.rigiB, S(correctionB, -1));
-      }
-
-      // Update connection A
-      for(j = 0; j < joint.iterations; j++){
-        
-        direction = s(anchorBPos, anchorAPos);
-        Dance = l(direction);
-        if(Dance < 0.00001) break;
-        normal = n(direction);
-        contact = {
-          depth: 0,
-          normal: normal,
-          contactPoint: anchorBPos,
-          rigiA: joint.rigiB,
-          rigiB: joint.rigiA
-        };
-        if(Dance > joint.initialLength){
-          contact.depth = Dance - joint.initialLength;
-        }
-        else {
-          contact.depth = joint.initialLength - Dance;
-          contact.normal = S(contact.normal, -1);
-        }
-        
-        pc(joint.rigiA, joint.rigiB, contact);
-        rc(joint.rigiA, joint.rigiB, contact);
-      }
-      
-      // Fix orientation strongly
-      currentOrientationDiff = joint.rigiB.angle - joint.rigiA.angle - 0.01;
-      angleError = joint.relativeAngle - currentOrientationDiff;
-      
-      // Apply symmetric angular correction
-      stiffness = 1; // try 1.0 for absolutely rigid
-      joint.rigiA.angle -= angleError * stiffness * 0.5;
-      joint.rigiB.angle += angleError * stiffness * 0.5;
-      
-      // Update connection B
-      for(j = 0; j < joint.iterations; j++){
-        direction = s(anchorBPos, anchorAPos);
-        Dance = l(direction);
-        if(Dance < 0.00001) break;
-        normal = n(direction);
-        contact = {
-          depth: 0,
-          normal: normal,
-          contactPoint: anchorBPos,
-          rigiA: joint.rigiA,
-          rigiB: joint.rigiB
-        };
-        
-        if(Dance > joint.initialLength){
-          contact.depth = Dance - joint.initialLength;
-        }
-        else{
-          contact.depth = joint.initialLength - Dance;
-          contact.normal = S(contact.normal, -1);
-        }
-        
-        pc(joint.rigiB, joint.rigiA, contact);
-        rc(joint.rigiB, joint.rigiA, contact);
-      }	
-
-      // Fix orientation strongly
-      currentOrientationDiff = joint.rigiA.angle - joint.rigiB.angle;
-      angleError = joint.relativeAngle - currentOrientationDiff;
-      
-      stiffness = 1;
-      joint.rigiA.angle += angleError * stiffness * 0.5;
-      joint.rigiB.angle -= angleError * stiffness * 0.5;
-      
-      avgAngVel = (joint.rigiA.angularVelocity + joint.rigiB.angularVelocity) * 0.5;
-      joint.rigiA.angularVelocity = avgAngVel;
-      joint.rigiB.angularVelocity = avgAngVel;
-		
-      restoreMaterial(joint);
-    }
-    
-    // Hinge joint
-    else if(joint.type == "hinge"){
-    
-      setMaterialZero(joint);
-
-      // Move H in order to make the anchor points superposed, proportionally to their inverse masses
-      var delta = s(anchorBPos, anchorAPos);
-      var totalInvMass = joint.rigiA.invMass + joint.rigiB.invMass;
-      if(totalInvMass > 0){
-        correctionA = S(delta, joint.rigiA.invMass / totalInvMass);
-        correctionB = S(delta, joint.rigiB.invMass / totalInvMass);
-
-        // Move A and B
-        ts(joint.rigiA, correctionA);
-        ts(joint.rigiB, S(correctionB, -1));
-      }
-
-      // Update connection A
-      for(var j = 0; j < joint.iterations; j++){
-        
-        direction = s(anchorBPos, anchorAPos);
-        Dance = l(direction);
-        if(Dance < 0.00001) break;
-        normal = n(direction);
-        contact = {
-          depth: 0,
-          normal: normal,
-          contactPoint: anchorBPos,
-          rigiA: joint.rigiB,
-          rigiB: joint.rigiA
-        };
-        if(Dance > joint.initialLength){
-          contact.depth = Dance - joint.initialLength;
-        }
-        else {
-          contact.depth = joint.initialLength - Dance;
-          contact.normal = S(contact.normal, -1);
-        }
-        
-        pc(joint.rigiA, joint.rigiB, contact);
-        rc(joint.rigiA, joint.rigiB, contact);
-      }
-      
-      // Update connection B
-      for(j = 0; j < joint.iterations; j++){
-        direction = s(anchorBPos, anchorAPos);
-        Dance = l(direction);
-        if(Dance < 0.00001) break;
-        normal = n(direction);
-        contact = {
-          depth: 0,
-          normal: normal,
-          contactPoint: anchorBPos,
-          rigiA: joint.rigiA,
-          rigiB: joint.rigiB
-        };
-        
-        if(Dance > joint.initialLength){
-          contact.depth = Dance - joint.initialLength;
-        }
-        else{
-          contact.depth = joint.initialLength - Dance;
-          contact.normal = S(contact.normal, -1);
-        }
-        
-        pc(joint.rigiB, joint.rigiA, contact);
-        rc(joint.rigiB, joint.rigiA, contact);
-      }
-		
-      restoreMaterial(joint);
+    else if("hinge"==i.type){
+      setMaterialZero(i);
+      d=s(t,g);
+      (L=i.rigiA.invMass+i.rigiB.invMass)>0&&(
+        v=S(d,i.rigiA.invMass/L),
+        M=S(d,i.rigiB.invMass/L),
+        ts(i.rigiA,v),
+        ts(i.rigiB,S(M,-1))
+      );
+      for(y=0;y<i.iterations&&(e=s(t,g),!((a=l(e))<1e-5));y++)
+        A={
+          depth:0,
+          normal:n(e),
+          contactPoint:t,
+          rigiA:i.rigiB,
+          rigiB:i.rigiA
+        },
+        a>i.initialLength?A.depth=a-i.initialLength:(
+          A.depth=i.initialLength-a,
+          A.normal=S(A.normal,-1)
+        ),
+        pc(i.rigiA,i.rigiB,A),
+        rc(i.rigiA,i.rigiB,A);
+      for(y=0;y<i.iterations&&(e=s(t,g),!((a=l(e))<1e-5));y++)
+        A={
+          depth:0,
+          normal:n(e),
+          contactPoint:t,
+          rigiA:i.rigiA,
+          rigiB:i.rigiB
+        },
+        a>i.initialLength?A.depth=a-i.initialLength:(
+          A.depth=i.initialLength-a,
+          A.normal=S(A.normal,-1)),
+          pc(i.rigiB,i.rigiA,A),
+          rc(i.rigiB,i.rigiA,A);
+      restoreMaterial(i)
     }
   }
-}
+};
 
 // Main loop
 setInterval(() => {
@@ -891,15 +769,62 @@ setInterval(() => {
 }, 16);
 
 // Demo
-for(i = 0; i < 40; i++){
-  shape("circle", V(i*20, -i*20-200), 10, 0, 10, .5, .5);
+
+// Grid
+shape("rectangle", V(400, 20), 780, 20, 0, .5, .5);
+shape("rectangle", V(400, 300), 780, 20, 0, .5, .5);
+shape("rectangle", V(400, 580), 780, 20, 0, .5, .5);
+shape("rectangle", V(400, 580), 780, 20, 0, .5, .5);
+shape("rectangle", V(20, 300), 20, 580, 0, .5, .5);
+shape("rectangle", V(20, 300), 20, 580, 0, .5, .5);
+shape("rectangle", V(280, 300), 20, 580, 0, .5, .5);
+shape("rectangle", V(540, 300), 20, 580, 0, .5, .5);
+shape("rectangle", V(780, 300), 20, 580, 0, .5, .5);
+
+// Stress test
+for(i=25;i--;){
+  shape("circle", V(50+Math.random() * (780/3 - 50), 60+Math.random() * (300 - 60)-20), Math.random()*10+15, 10, .5, .5);
+  shape("rectangle", V(50+Math.random() * (780/3 - 50), 60+Math.random() * (300 - 60)-20), Math.random()*10+15, Math.random()*10+15, .5, .5);
 }
-s1 = shape("rectangle", V(380, 450), 600, 20, 0, .5, .5);
-rs(s1, .1);
-r1 = shape("rectangle", V(300, 200), 200, 100, 100);
-a1 = aa(V(75, 0), r1);
-r2 = shape("rectangle", V(600, 200), 300, 25, 100);
-a2 = aa(V(-125, 0), r2);
-c1 = shape("circle", V(300, 320), 60, 0, 100);
-j1 = forceJoint(r1, a1, r2, a2, .1);
+
+// Force joint
+r1 = shape("rectangle", V(400, 80), 90, 50, 0, .5, .5);
+a1 = aa(V(20,15), r1);
+c1 = shape("circle", V(450, 250), 30, 10);
+a2 = aa(V(-20,10), c1);
+j1 = forceJoint(r1, a1, c1, a2, .0025);
+
+// Spring joint
+r1 = shape("rectangle", V(630, 80), 90, 50, 0, .5, .5);
+a1 = aa(V(20,15), r1);
+c1 = shape("circle", V(590, 250), 30, 100);
+a2 = aa(V(0,-10), c1);
+j2 = springJoint(r1, a1, c1, a2, .0002, 100);
+
+// Reverse force joint
+for(i=10;i--;){
+  shape("circle", V(180+Math.random() * 30, 520+Math.random() * 20), Math.random()*5+5, 10, .5, .5);
+}
+r1 = shape("rectangle", V(100, 520), 90, 50, 0, .5, .5);
+a1 = aa(V(0,-25), r1);
+c1 = shape("circle", V(120, 480), 30, 0, 1);
+a2 = aa(V(-20,0), c1);
+j1 = reverseForceJoint(r1, a1, c1, a2, .0002, 200);
+
+// Fixed joint
+for(i=20;i--;){
+  shape("circle", V(300+Math.random() * (780/3 - 50), 520+Math.random() * 20), Math.random()*5+5, 10, .5, .5);
+}
+r1 = shape("rectangle", V(400, 420), 90, 50, 1, .5, .5);
+a1 = aa(V(0,-15), r1);
+c1 = shape("circle", V(400, 400), 30, 1);
+a2 = aa(V(0,20), c1);
+j4 = fixedJoint(r1, a1, c1, a2, 200);
+
+// Hinge joint
+r1 = shape("rectangle", V(630, 460), 90, 50, 0, .5, .5);
+a1 = aa(V(20,15), r1);
+c1 = shape("circle", V(640, 440), 30, 100);
+a2 = aa(V(-20,10), c1);
+j4 = hingeJoint(r1, a1, c1, a2, 20);
 </script>
