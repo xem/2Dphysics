@@ -18,22 +18,45 @@ D=(x,y)=>l(s(x,y)),           // dist
 r=(x,y,c)=>(V((x.x-y.x)*Math.cos(c)-(x.y-y.y)*Math.sin(c)+y.x,(x.x-y.x)*Math.sin(c)+(x.y-y.y)*Math.cos(c)+y.y)), // rotate
 C=(x,y)=>x.x*y.y-x.y*y.x,     // cross
 
+// "Scalar cross" helper function
+// performs a scalar cross between an angular velocity and penetration vector
+// params: shape, penetration
+sc=(shape,penetration)=>V(-shape.angularVelocity*penetration.y,shape.angularVelocity*penetration.x),
+
+// small helper to apply normal impulse (linear + angular)
+applyImpulse = (sA, sB, impulseScalar, normal, ra, rb, Imp) => {
+
+  //console.log(A, B, impulseScalar, normal, ra, rb);
+  
+  Imp = S(normal, impulseScalar);
+  
+  // linear
+  if(sA.invMass !== 0) sA.velocity = s(sA.velocity, S(Imp, sA.invMass));
+  if(sB.invMass !== 0) sB.velocity = A(sB.velocity, S(Imp, sB.invMass));
+  
+  // angular
+  sA.angularVelocity += -C(ra, normal) * impulseScalar * sA.invInertia;
+  sB.angularVelocity += C(rb, normal) * impulseScalar * sB.invInertia;
+};
+
+
 // Globals
-m=0,p=0,        // mouse position, pressed
-sr=0,sp=0,sa=0, // selected rigidbody, position, anchor
-H=[],J=[],M=[], // shapes, joints, manifolds
-G=V(0,.1),      // Gravity
+//m=0,p=0,          // mouse position, pressed
+//sr=0,sp=0,sa=0,   // selected rigidbody, position, anchor
+H=[],J=[],M=[],   // shapes, joints, manifolds
+G=V(0,.1),        // Gravity
+SOLVER_ITERS=20,  // solver iterations per frame
 
 // Event listeners
-onmousemove=e=>m=V(e.pageX-a.offsetLeft,e.pageY-a.offsetTop),
-onmousedown=onmouseup=e=>p=e.type[7],
+//onmousemove=e=>m=V(e.pageX-a.offsetLeft,e.pageY-a.offsetTop),
+//onmousedown=onmouseup=e=>p=e.type[7],
 
 // Shapes
 shape=(
   type,
   center,
-  size1,
-  size2,
+  size1, // radius (circle) or width (rectangle)
+  size2, // height (rectangle only)
   mass=1,
   friction=0,
   restitution=1,
@@ -75,14 +98,14 @@ shape=(
     ]
   }
 )=>(
-  cn(s),      // calc normals
+  cn(s),      // compute normals (rectangles only)
   H.push(s),  // add shape in shapes list
   s           // return shape
 ),
 
 // Check if a point is inside a shape
 // params: point (world coordinates), shape
-pi=(point,shape,t=1,i=4)=>{
+/*pi=(point,shape,t=1,i=4)=>{
 
   // circles: return true if radius is bigger than distance to center
   if(shape.type==="circle")t=shape.size1>l(s(shape.center,point));
@@ -91,7 +114,7 @@ pi=(point,shape,t=1,i=4)=>{
   else for(;i--;)if(d(s(point,shape.vertices[i]),shape.normals[i])>0)t=0;
   
   return t
-},
+},*/
 
 // Add an anchor to a shape
 // params: anchor (local coordinates), shape
@@ -106,14 +129,14 @@ aa=(anchor,shape)=>(
 
 // Add force on a point
 // params: point (world coordinates), shape, force (2D vector)
-af=(point,shape,force)=>{
+/*af=(point,shape,force)=>{
 
   // translation force
   shape.forceAccumulator=A(shape.forceAccumulator,force),
   
   // rotation force
   shape.torqueAccumulator+=C(s(point,shape.center),force)
-},
+},*/
 
 // Translate a shape
 // params: shape, offset (2D vector)
@@ -212,14 +235,10 @@ rr=(rect1,rect2,e,r)=>{
   // test rect1 against rect2's axis
   r=cp(rect2,rect1);
   
-  // return null (if no collision) or the manifold with the smallest penetration depth (flip the normal if it's a rect2 axis)
+  // return null (if no collision) or the manifold with the smallest penetration depth (flip the normal and A&B if it's a rect2 axis)
   return r===null
   ?r
-  :(
-    e.depth<r.depth
-    ?e
-    :(r.normal=S(r.normal,-1),r)
-  )
+  :(e.depth<r.depth?e:r)
 },
 
 // Get contact point
@@ -238,7 +257,9 @@ cp=(t,n,r=null,e=9e9,l=null,o=0)=>{
       r={
         depth:e=l.depth,
         normal:t.normals[o],
-        contactPoint:l.vertex
+        contactPoint:l.vertex,
+        A:t,
+        B:n
       }
     )
   }
@@ -309,7 +330,9 @@ cre=(circle,rect,normalscale,t,c,i=null,v=null,o=0,z,u)=>{
   ?{
     depth:-(u-circle.size1),
     normal:S(v,normalscale),
-    contactPoint:A(circle.center,S(v,-circle.size1))
+    contactPoint:A(circle.center,S(v,-circle.size1)),
+    A: circle,
+    B: rect
   }
   :null
 },
@@ -322,75 +345,98 @@ crc=(circle,rect,normalscale,t,c=0)=>{
       return{
         depth:circle.size1-l(t),
         normal:S(n(t),normalscale),
-        contactPoint:rect.vertices[c]
+        contactPoint:rect.vertices[c],
+        A: circle,
+        B: rect
       };
   return null
 },
 
-// Correct positioning
-// Move shapes away from each other according to a collision manifold and proportionally to their inverse mass
-// params: shape1, shape2, manifold
+/*// Correct positioning (kept for compatibility but not used in solver per your request)
 pc=(shape1,shape2,manifold,v)=>{
-  
-  // compute total correction amount
-  v=S(manifold.normal,manifold.depth/(shape1.invMass+shape2.invMass)*.7);
-  
-  // tanslate shapes (if they're not fixed)
-  shape1.invMass>0&&ts(shape1,S(v,-shape1.invMass)),
-  shape2.invMass>0&&ts(shape2,S(v,shape2.invMass))
-},
+  // intentionally left unused by solver (no direct position correction requested)
+  // kept so other code that references pc doesn't break
+},*/
 
-// "Scalar cross" helper function
-// performs a scalar cross between an angular velocity and penetration vector
-// params: shape, penetration
-sc=(shape,penetration)=>V(-shape.angularVelocity*penetration.y,shape.angularVelocity*penetration.x),
 
 // Resolve collision
 // params: shape1, shape2, manifold
-rc=(shape1,shape2,manifold,a,o,v,y,m,u,M,g,f,h,x,F,P,b,j,p,q)=>{
+rc=(manifold,shape1,shape2,a,o,v,u,M,B,x,F,P,b,j,m,p,q)=>{
 
-  // skip if both shapes are fixed
-  shape1.invMass===0&&shape2.invMass===0||(
+  shape1 = manifold.A;
+  shape2 = manifold.B;
+
+  // Movement impulses
   
-    // if the objects are already moving apart from each other, return
-    // else, compute relative velocity (v: linear and a: rotational)
-    (y=d(v=s(A(shape2.velocity,sc(shape2,o=s(manifold.contactPoint,shape2.center))),A(shape1.velocity,sc(shape1,a=s(manifold.contactPoint,shape1.center)))),manifold.normal))>0||(
+  // skip if both shapes are fixed
+  if(shape1.invMass!==0 || shape2.invMass!==0){
+
+    // relative velocity at contact point
+    v = s(
+      A(
+        shape2.velocity,
+        sc(
+          shape2, 
+          o = s(manifold.contactPoint, shape2.center)
+        )
+      ),
+      A(
+        shape1.velocity, 
+        sc(
+          shape1,
+          a = s(manifold.contactPoint, shape1.center)
+        )
+      )
+    );
+
+    // effective mass for normal direction
+    u = C(a,manifold.normal);
+    M = C(o,manifold.normal);
+
+    // compute Baumgarte-like bias from penetration to reduce positional drift
+    B = manifold.depth * .5;
+
+    // normal impulse scalar
+    x = (-(1 + Math.min(shape1.restitution, shape2.restitution)) * d(v, manifold.normal) + B)
+        /
+        (shape1.invMass + shape2.invMass + u*u*shape1.invInertia + M*M*shape2.invInertia);
+
+    // apply linear impulses (opposite directions)
+    shape1.velocity = s(shape1.velocity, S(F = S(manifold.normal, x), shape1.invMass));
+    shape2.velocity = A(shape2.velocity, S(F, shape2.invMass));
+
+    // apply angular impulses
+    shape1.angularVelocity += -u * x * shape1.invInertia;
+    shape2.angularVelocity += M * x * shape2.invInertia;
+
+    // friction impulses
     
-      // Normal impulse:
+    // compute tangent
+    P = S(s(v, S(manifold.normal, d(v, manifold.normal))), -1);
+    
+    // if zero tangent, skip
+    if(l(P) > 0) {
+ 
+      // effective mass along tangent
+      b = C(a, P = n(P));
+      j = C(o, P);
+
+      // friction coefficient
+      m = Math.min(shape1.friction, shape2.friction);
       
-      // total restitution
-      m=Math.min(shape1.restitution,shape2.restitution),
+      // desired friction impulse
+      p = (-d(v, P)) / (shape1.invMass + shape2.invMass + b*b*shape1.invInertia + j*j*shape2.invInertia);
       
-      // "lever arm" cross product
-      u=C(a,manifold.normal),
-      M=C(o,manifold.normal),
+      // clamp friction by normal impulse magnitude
+      if(Math.abs(p) > Math.abs(x) * m) p = Math.sign(p) * Math.abs(x) * m;
       
-      // compute scalar impulse magnitude F
-      F=S(manifold.normal,x=(-(1+m)*y)/((g=shape1.invMass+shape2.invMass)+(u*u*(f=shape1.invInertia)+M*M*(h=shape2.invInertia)))),
-      
-      // apply linear impulses (in opposite directions)
-      shape1.velocity=s(shape1.velocity,S(F,shape1.invMass)),
-      shape2.velocity=A(shape2.velocity,S(F,shape2.invMass)),
-      
-      // apply rotational impulses (alse opposite)
-      shape1.angularVelocity+=-u*x*f,
-      shape2.angularVelocity+=M*x*h,
-      
-      // Frictional impulse:
-      
-      // compute reverse tangent direction
-      P=S(s(v,S(manifold.normal,d(v,manifold.normal))),-1),
-      
-      // compute frictional impulse and don't let it exceed normal impulse
-      (p=(-(1+m)*d(v,P)*Math.min(shape1.friction,shape2.friction))/(g+((b=C(a,P))*b*f+(j=C(o,P))*j*h)))>x&&(p=x),
-      
-      // apply linear and rotational impulses
-      shape1.velocity=s(shape1.velocity,S(q=S(P,p),shape1.invMass)),
-      shape2.velocity=A(shape2.velocity,S(q,shape2.invMass)),
-      shape1.angularVelocity+=-b*p*f,
-      shape2.angularVelocity+=j*p*h
-    )
-  )
+      // apply impulses
+      shape1.velocity = s(shape1.velocity, S(q = S(P, p), shape1.invMass));
+      shape2.velocity = A(shape2.velocity, S(q, shape2.invMass));
+      shape1.angularVelocity += -b * p * shape1.invInertia;
+      shape2.angularVelocity += j * p * shape2.invInertia;
+    }
+  }
 },
 
 // Debug: Draw a point
@@ -413,7 +459,7 @@ dl=(start,end,color="#888")=>(
 ),
 
 // Mouse interactions
-mi=(r,a,e,n,o)=>{
+/*mi=(r,a,e,n,o)=>{
   if(p)
     for(r=0;r<H.length;r++)pi(m,H[r])&&0==sr&&(
       sr=H[r],
@@ -432,93 +478,85 @@ mi=(r,a,e,n,o)=>{
     o=s(m,n),
     af(n,sr,S(o,.01))
   )
-},
+},*/
 
 // Update the physics engine
-up=(e,r,c,t,o,j=0,i)=>{
-  
-  // reset manifolds list
-  M=[];
+up=(i,j,body1,body2,manifold,diff,dist)=>{
 
-  // consider all distinct pairs of shapes
+  // clear manifolds
+  M = [];
+  
+  // apply gravity as acceleration (F = m * g)
+  for(j of H){
+    if(j.invMass !== 0) j.forceAccumulator = S(G, j.mass);
+  }
+
+  // collision detection
   for(j=0;j<H.length;j++){
-  
-    
-  
-    // r: shape1 (index j from 0 to H.length)
-    r=H[j];
-    
-    // add (gravity * mass) to shape1
-    r.forceAccumulator=A(r.forceAccumulator,S(G,r.mass));
-    
-    for(i=j;i<H.length;i++){
-    
-      // c: shape2 (index i from j to H.length)
-      c=H[i],
+    for(i=j+1;i<H.length;i++){
       
-      // ignore self-collisions, pairs of fixed shapes and collisions in fixed/hinge joints
-      j===i||r.invMass===0&&c.invMass===0||r.noCollision.includes(i)||
-      (
-        
+      body1 = H[j],
+      body2 = H[i];
+      
+      // skip pairs of static bodies and bodies with fixed/hinge joints
+      if((body1.invMass !== 0 || body2.invMass !== 0) && !body1.noCollision.includes(i)){
+
         // reset manifold
-        e=null,
+        manifold = null;
+
+        // circle-circle
+        if(body1.type=== "circle" && body2.type === "circle"){
+          diff = s(body2.center, body1.center);
+          dist = l(diff);
+          if(dist < body1.size1 + body2.size1){
+            manifold = {
+              depth: body1.size1 + body2.size1 - dist,
+              normal: n(diff),
+              contactPoint: A(body1.center, S(n(diff), body1.size1)),
+              A: body1,
+              B: body2
+            };
+          }
+        }
         
-        // circle-circle collision
-        r.type==="circle"&&c.type==="circle"
-        ?(
-          
-          // vector between circles centers
-          t=s(c.center,r.center),
-          
-          // if distance between centers is smaller than sum of radii: collision
-          (o=l(t))<r.size1+c.size1&&(
-            
-            // create manifold
-            e={
-              depth:r.size1+c.size1-o,
-              normal:n(t),
-              contactPoint:A(r.center,S(n(t),r.size1))
-            }
-          )
-        )
+        // rect-rect
+        else if(body1.type === "rectangle" && body2.type === "rectangle"){
+          manifold = rr(body1, body2);
+        }
         
-        // rectangle-rectangle-rectangle collision
-        :r.type==="rectangle"&&c.type==="rectangle"
-        ?e=rr(r,c)
+        // rect-circle (circle as first)
+        else if(body1.type === "rectangle" && body2.type === "circle"){
+          manifold = cr(body2, body1);
+        }
         
-        // rectangle-circle collision
-        :r.type==="rectangle"&&c.type==="circle"
-        
-        // check circle-rectangle collision and inverse the normal
-        ?(e=cr(c,r,-1))
-        
-        // circle-rectangle collision
-        :r.type==="circle"&&c.type==="rectangle"&&(e=cr(r,c)),
-        
-        // if a manifold is present: there's a collision
-        e&&(
-        
-          // correct positioning
-          pc(r,c,e),
-          
-          // resolve collision
-          rc(r,c,e),
-          
-          // add manifold to manifolds list (debug only)
-          M.push(e)
-        )
-      );
+        // circle-rect
+        else { //if(body1.type === "circle" && body2.type === "rectangle"){
+          manifold = cr(body1, body2);
+        }
+
+        // add manifold to list
+        if(manifold) M.push(manifold);
+      }
     }
   }
 
-  // integrate all shapes
-  for(j of H)si(j);
+  // resolve contact impulses and joint impulses multiple times
+  for(i = SOLVER_ITERS; i--;){
+  
+    // resolve contacts
+    for(j of M){
+      rc(j);
+    }
+    
+    // resolve joints as contact-like constraints
+    hj();
+  }
+
+  // integrate shapes
+  for(j of H) si(j);
 
   // handle mouse interactions
-  mi();
-  
-  // handle joints
-  hj();  
+  // mi();
 },
 
 // Render the scene
@@ -546,8 +584,6 @@ dr=(e,r)=>{
       c.restore(),
     e.anchorPoints))
       dp(r,"green");
-  for(e of M)
-    //dp(e.contactPoint,"#04F");
   for(e of J)
     dl(e.rigiA.anchorPoints[e.anchorA],e.rigiB.anchorPoints[e.anchorB],"orange")
     
@@ -654,110 +690,115 @@ restoreMaterial=i=>{
   i.rigiB.friction=i.rigiBFriction
 },
 
-// Joint handler
-hj=(i,r,g,t,e,a,o,h,A,B,c,f,p,v,M,m,L,d,y)=>{
-  for(m=0;m<J.length;m++){
-    r=0==(i=J[m]).rigiA.invMass||0==i.rigiB.invMass?1:.5,g=i.rigiA.anchorPoints[i.anchorA],
-    t=i.rigiB.anchorPoints[i.anchorB],
-    e=s(t,g),
-    a=l(e);
-    if("force"==i.type)
-      af(t,i.rigiA,S(e,i.strength/2)),
-      af(g,i.rigiB,S(e,-i.strength/2));
-    else if("spring"==i.type)
-      o=(a-i.restLength)*i.restLength*i.stiffness*r,h=S(n(e),o),
-      0!=i.rigiA.invMass&&af(g,i.rigiA,h),
-      0!=i.rigiB.invMass&&af(t,i.rigiB,S(h,-1));
-    else if("reverseForce"==i.type)
-      o=Math.max(0,i.maxEffectDistance-a),
-      0!=i.rigiA.invMass&&af(t,i.rigiA,S(n(e),-o*i.strength*r)),
-      0!=i.rigiB.invMass&&af(g,i.rigiB,S(n(e),o*i.strength*r));
-    else if("fixed"==i.type){
-      setMaterialZero(i),
-      d=s(t,g),(L=i.rigiA.invMass+i.rigiB.invMass)>0&&(v=S(d,i.rigiA.invMass/L),
-      M=S(d,i.rigiB.invMass/L),
-      ts(i.rigiA,v),
-      ts(i.rigiB,S(M,-1)));
-      for(y=0;y<i.iterations&&(e=s(t,g),!((a=l(e))<1e-5));y++)
-        A={
-          depth:0,
-          normal:n(e),
-          contactPoint:t,
-          rigiA:i.rigiB,
-          rigiB:i.rigiA
-        },
-        a>i.initialLength?A.depth=a-i.initialLength:(
-          A.depth=i.initialLength-a,
-          A.normal=S(A.normal,-1)
-        ),
-        pc(i.rigiA,i.rigiB,A),
-        rc(i.rigiA,i.rigiB,A);
-      B=i.rigiB.angle-i.rigiA.angle-.01,
-      c=i.relativeAngle-B,
-      f=1,
-      i.rigiA.angle-=c*f*.5,
-      i.rigiB.angle+=c*f*.5;
-      for(y=0;y<i.iterations&&(e=s(t,g),!((a=l(e))<1e-5));y++)
-        A={
-          depth:0,
-          normal:n(e),
-          contactPoint:t,
-          rigiA:i.rigiA,
-          rigiB:i.rigiB
-        },
-        a>i.initialLength?A.depth=a-i.initialLength:(
-          A.depth=i.initialLength-a,
-          A.normal=S(A.normal,-1)
-        ),
-        pc(i.rigiB,i.rigiA,A),
-        rc(i.rigiB,i.rigiA,A);
-      B=i.rigiA.angle-i.rigiB.angle,
-      c=i.relativeAngle-B,
-      f=1,
-      i.rigiA.angle+=c*f*.5,
-      i.rigiB.angle-=c*f*.5,
-      p=.5*(i.rigiA.angularVelocity+i.rigiB.angularVelocity),
-      i.rigiA.angularVelocity=p,
-      i.rigiB.angularVelocity=p,
-      restoreMaterial(i)
+// Joint handler (J1 style) - treat anchors like contact points and solve with impulses
+// This function applies impulses only (no direct position changes).
+hj=(i, j, Apos, Bpos, ra, rb, dpos, dist, normal, vA, vB, relV, relNormalVel, raCrossN, rbCrossN, invMassSum, impulse, bias, displacement)=>{
+
+  for(i=0; i<J.length; i++){
+  
+    j = J[i];
+    
+    // world positions of anchors
+    Apos = j.rigiA.anchorPoints[j.anchorA];
+    Bpos = j.rigiB.anchorPoints[j.anchorB];
+    
+    // relative vectors from centers
+    ra = s(Apos, j.rigiA.center);
+    rb = s(Bpos, j.rigiB.center);
+    
+    // delta between anchors
+    dpos = s(Bpos, Apos);
+    dist = l(dpos);
+    normal = dist > 1e-8 ? n(dpos) : V(1,0);
+
+    // compute velocities at anchor points (linear + angular)
+    vA = A(j.rigiA.velocity, sc(j.rigiA,ra));
+    vB = A(j.rigiB.velocity, sc(j.rigiB,rb));
+    relV = s(vB, vA);
+    relNormalVel = d(relV, normal);
+
+    // effective mass along normal (including rotational contribution)
+    raCrossN = C(ra, normal);
+    rbCrossN = C(rb, normal);
+    invMassSum = j.rigiA.invMass + j.rigiB.invMass + raCrossN*raCrossN*j.rigiA.invInertia + rbCrossN*rbCrossN*j.rigiB.invInertia;
+    
+    // force joint
+    if(j.type === "force"){
+      
+      // pulling impulse proportional to separation
+      impulse = -j.strength * dist / 10000;
+      applyImpulse(j.rigiA, j.rigiB, impulse, normal, ra, rb);
     }
-    else if("hinge"==i.type){
-      setMaterialZero(i);
-      d=s(t,g);
-      (L=i.rigiA.invMass+i.rigiB.invMass)>0&&(
-        v=S(d,i.rigiA.invMass/L),
-        M=S(d,i.rigiB.invMass/L),
-        ts(i.rigiA,v),
-        ts(i.rigiB,S(M,-1))
-      );
-      for(y=0;y<i.iterations&&(e=s(t,g),!((a=l(e))<1e-5));y++)
-        A={
-          depth:0,
-          normal:n(e),
-          contactPoint:t,
-          rigiA:i.rigiB,
-          rigiB:i.rigiA
-        },
-        a>i.initialLength?A.depth=a-i.initialLength:(
-          A.depth=i.initialLength-a,
-          A.normal=S(A.normal,-1)
-        ),
-        pc(i.rigiA,i.rigiB,A),
-        rc(i.rigiA,i.rigiB,A);
-      for(y=0;y<i.iterations&&(e=s(t,g),!((a=l(e))<1e-5));y++)
-        A={
-          depth:0,
-          normal:n(e),
-          contactPoint:t,
-          rigiA:i.rigiA,
-          rigiB:i.rigiB
-        },
-        a>i.initialLength?A.depth=a-i.initialLength:(
-          A.depth=i.initialLength-a,
-          A.normal=S(A.normal,-1)),
-          pc(i.rigiB,i.rigiA,A),
-          rc(i.rigiB,i.rigiA,A);
-      restoreMaterial(i)
+    
+    // spring joint
+    else if(j.type === "spring"){
+    
+      // treat like a spring -> desired impulse proportional to displacement (stiffness)
+      displacement = dist - j.restLength;
+      
+      // bias to correct displacement (stiffness controls magnitude)
+      bias = - j.stiffness * displacement / 1000;
+      
+      // compute scalar impulse (divide by effective mass if available)
+      impulse = invMassSum > 0 ? bias / invMassSum : 0;
+      
+      applyImpulse(j.rigiA, j.rigiB, impulse, normal, ra, rb);
+    }
+    
+    // reverse force joint
+    else if(j.type === "reverseForce"){
+    
+      // apply impulse pushing anchors away when too close
+      displacement = Math.max(0, j.maxEffectDistance - dist);
+      impulse = j.strength * displacement / 10000;
+      applyImpulse(j.rigiA, j.rigiB, impulse, normal, ra, rb);
+    }
+    
+    // hinge & fixed
+    else { //if(j.type === "hinge" || j.type === "fixed"){
+    
+      // solve linear anchor constraint as contact-like impulse with Baumgarte bias
+      // bias = k * penetration (we want anchors to stay together -> penetration = dist - initialLength)
+      let penetration = dist - j.initialLength;
+      let k_bias = 0.9; // bias factor
+      let bias = k_bias * penetration;
+
+      // relative normal velocity
+      let relNV = relNormalVel;
+
+      // normal impulse scalar
+      let Jn = 0;
+      if(invMassSum>0){
+        Jn = ( - relNV + (-bias) ) / invMassSum; // negative bias to remove penetration
+      }
+      applyImpulse(j.rigiA, j.rigiB, Jn, normal, ra, rb);
+
+      // For fixed joint, also enforce angular constraint (keep relative angle constant)
+      if(j.type==="fixed"){
+        // angle error = current relative angle - initial relative angle
+        let currentRelAngle = j.rigiB.angle - j.rigiA.angle;
+        let angleError = currentRelAngle - j.relativeAngle;
+        // wrap to [-PI,PI]
+        while(angleError > Math.PI) angleError -= Math.PI*2;
+        while(angleError < -Math.PI) angleError += Math.PI*2;
+        // bias for angle
+        let angBiasFactor = 0.2;
+        let angBias = angBiasFactor * angleError;
+        // relative angular velocity
+        let relAngVel = j.rigiB.angularVelocity - j.rigiA.angularVelocity;
+        // effective angular mass
+        let invIA = j.rigiA.invInertia, invIB = j.rigiB.invInertia;
+        let angDen = invIA + invIB;
+        if(angDen>0){
+          let Jang = ( - relAngVel + (-angBias) ) / angDen;
+          // apply angular impulses (change angular velocities)
+          if(j.rigiA.invMass !== 0) j.rigiA.angularVelocity += -Jang * invIA / invIA * invIA; // simplifies to -Jang*invIA
+          if(j.rigiB.invMass !== 0) j.rigiB.angularVelocity += Jang * invIB;
+          // simpler:
+          j.rigiA.angularVelocity += -Jang * invIA;
+          j.rigiB.angularVelocity += Jang * invIB;
+        }
+      }
     }
   }
 };
@@ -782,49 +823,50 @@ shape("rectangle", V(540, 300), 20, 580, 0, .5, .5);
 shape("rectangle", V(780, 300), 20, 580, 0, .5, .5);
 
 // Stress test
-for(i=25;i--;){
-  shape("circle", V(50+Math.random() * (780/3 - 50), 60+Math.random() * (300 - 60)-20), Math.random()*10+15, 10, .5, .5);
-  shape("rectangle", V(50+Math.random() * (780/3 - 50), 60+Math.random() * (300 - 60)-20), Math.random()*10+15, Math.random()*10+15, .5, .5);
+for(i=40;i--;){
+  shape("circle", V(65 - i/2 + (i % 8) * 25, 55+ (i / 8) * 40), 10, 15, 10, .5, .5);
+  shape("rectangle", V(50 + i/2 + (i % 8) * 25, 35+ (i / 8) * 40), 20, 15, 10, .5, .5, );
 }
 
 // Force joint
 r1 = shape("rectangle", V(400, 80), 90, 50, 0, .5, .5);
 a1 = aa(V(20,15), r1);
-c1 = shape("circle", V(450, 250), 30, 10);
+c1 = shape("circle", V(450, 250), 30, 30, .8);
 a2 = aa(V(-20,10), c1);
-j1 = forceJoint(r1, a1, c1, a2, .0025);
+j1 = forceJoint(r1, a1, c1, a2, .95);
 
 // Spring joint
 r1 = shape("rectangle", V(630, 80), 90, 50, 0, .5, .5);
 a1 = aa(V(20,15), r1);
-c1 = shape("circle", V(590, 250), 30, 100);
+c1 = shape("circle", V(590, 250), 30, 30, 1);
 a2 = aa(V(0,-10), c1);
-j2 = springJoint(r1, a1, c1, a2, .0002, 100);
+j2 = springJoint(r1, a1, c1, a2, .2, 80);
 
 // Reverse force joint
 for(i=10;i--;){
-  shape("circle", V(180+Math.random() * 30, 520+Math.random() * 20), Math.random()*5+5, 10, .5, .5);
+  shape("circle", V(180+Math.random() * 30, 520+Math.random() * 20), Math.random()*5+5, 10, 10, .5, .5);
 }
 r1 = shape("rectangle", V(100, 520), 90, 50, 0, .5, .5);
 a1 = aa(V(0,-25), r1);
 c1 = shape("circle", V(120, 480), 30, 0, 1);
 a2 = aa(V(-20,0), c1);
-j1 = reverseForceJoint(r1, a1, c1, a2, .0002, 200);
+j1 = reverseForceJoint(r1, a1, c1, a2, .2, 200);
 
 // Fixed joint
 for(i=20;i--;){
-  shape("circle", V(300+Math.random() * (780/3 - 50), 520+Math.random() * 20), Math.random()*5+5, 10, .5, .5);
+  shape("circle", V(300+Math.random() * (780/3 - 50), 520+Math.random() * 20), Math.random()*5+5, 10,10, .5, .5);
 }
 r1 = shape("rectangle", V(400, 420), 90, 50, 1, .5, .5);
 a1 = aa(V(0,-15), r1);
-c1 = shape("circle", V(400, 400), 30, 1);
+c1 = shape("circle", V(400, 400), 30, 30, 1);
 a2 = aa(V(0,20), c1);
-j4 = fixedJoint(r1, a1, c1, a2, 200);
+j4 = fixedJoint(r1, a1, c1, a2, 20);
 
 // Hinge joint
 r1 = shape("rectangle", V(630, 460), 90, 50, 0, .5, .5);
 a1 = aa(V(20,15), r1);
-c1 = shape("circle", V(640, 440), 30, 100);
+c1 = shape("circle", V(640, 440), 30, 30, 100);
 a2 = aa(V(-20,10), c1);
 j4 = hingeJoint(r1, a1, c1, a2, 20);
+
 </script>
