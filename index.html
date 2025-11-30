@@ -11,8 +11,8 @@ n=v=>S(v,1/l(v)),             // normalize
 l=v=>d(v,v)**.5,              // length
 N=v=>V(v.y,-v.x),             // normal
 d=(x,y)=>x.x*y.x+x.y*y.y,     // dot
-A=(x,y)=>V(x.x+y.x,x.y+y.y),  // add
-s=(x,y)=>A(x,S(y,-1)),        // sub
+add=(x,y)=>V(x.x+y.x,x.y+y.y),  // add
+s=(x,y)=>add(x,S(y,-1)),        // sub
 S=(x,y)=>V(x.x*y,x.y*y),      // scale
 D=(x,y)=>l(s(x,y)),           // dist
 r=(x,y,c)=>(V((x.x-y.x)*Math.cos(c)-(x.y-y.y)*Math.sin(c)+y.x,(x.x-y.x)*Math.sin(c)+(x.y-y.y)*Math.cos(c)+y.y)), // rotate
@@ -32,7 +32,7 @@ applyImpulse = (sA, sB, impulseScalar, normal, ra, rb, Imp) => {
   
   // linear
   if(sA.invMass !== 0) sA.velocity = s(sA.velocity, S(Imp, sA.invMass));
-  if(sB.invMass !== 0) sB.velocity = A(sB.velocity, S(Imp, sB.invMass));
+  if(sB.invMass !== 0) sB.velocity = add(sB.velocity, S(Imp, sB.invMass));
   
   // angular
   sA.angularVelocity += -C(ra, normal) * impulseScalar * sA.invInertia;
@@ -121,7 +121,7 @@ shape=(
 aa=(anchor,shape)=>(
   
   // add anchor in the point's anchors list (converted in world coordinates)
-  shape.anchorPoints.push(A(anchor,shape.center)),
+  shape.anchorPoints.push(add(anchor,shape.center)),
   
   // return anchor index
   shape.anchorPoints.length-1
@@ -132,7 +132,7 @@ aa=(anchor,shape)=>(
 /*af=(point,shape,force)=>{
 
   // translation force
-  shape.forceAccumulator=A(shape.forceAccumulator,force),
+  shape.forceAccumulator=add(shape.forceAccumulator,force),
   
   // rotation force
   shape.torqueAccumulator+=C(s(point,shape.center),force)
@@ -143,15 +143,15 @@ aa=(anchor,shape)=>(
 ts=(shape,offset,n)=>{
 
   // add offset to the shape's center
-  shape.center=A(shape.center,offset);
+  shape.center=add(shape.center,offset);
   
   // add offset to the shape's vertices (if any)
   for(n in shape.vertices)
-    shape.vertices[n]=A(shape.vertices[n],offset);
+    shape.vertices[n]=add(shape.vertices[n],offset);
     
   // add offset to the shape's anchor points
   for(n in shape.anchorPoints)
-    shape.anchorPoints[n]=A(shape.anchorPoints[n],offset)
+    shape.anchorPoints[n]=add(shape.anchorPoints[n],offset)
 },
 
 // Rotate a shape around its center
@@ -184,7 +184,7 @@ si=shape=>{
   if(shape.invMass!==0){
     
     // add force accumulator to velocity (proportionally to inverse mass)
-    shape.velocity=A(shape.velocity,S(shape.forceAccumulator,shape.invMass)),
+    shape.velocity=add(shape.velocity,S(shape.forceAccumulator,shape.invMass)),
     
     // add velocity to position
     ts(shape,shape.velocity),
@@ -330,7 +330,7 @@ cre=(circle,rect,normalscale,t,c,i=null,v=null,o=0,z,u)=>{
   ?{
     depth:-(u-circle.size1),
     normal:S(v,normalscale),
-    contactPoint:A(circle.center,S(v,-circle.size1)),
+    contactPoint:add(circle.center,S(v,-circle.size1)),
     A: circle,
     B: rect
   }
@@ -373,14 +373,14 @@ rc=(manifold,shape1,shape2,a,o,v,u,M,B,x,F,P,b,j,m,p,q)=>{
 
     // relative velocity at contact point
     v = s(
-      A(
+      add(
         shape2.velocity,
         sc(
           shape2, 
           o = s(manifold.contactPoint, shape2.center)
         )
       ),
-      A(
+      add(
         shape1.velocity, 
         sc(
           shape1,
@@ -403,7 +403,7 @@ rc=(manifold,shape1,shape2,a,o,v,u,M,B,x,F,P,b,j,m,p,q)=>{
 
     // apply linear impulses (opposite directions)
     shape1.velocity = s(shape1.velocity, S(F = S(manifold.normal, x), shape1.invMass));
-    shape2.velocity = A(shape2.velocity, S(F, shape2.invMass));
+    shape2.velocity = add(shape2.velocity, S(F, shape2.invMass));
 
     // apply angular impulses
     shape1.angularVelocity += -u * x * shape1.invInertia;
@@ -432,7 +432,7 @@ rc=(manifold,shape1,shape2,a,o,v,u,M,B,x,F,P,b,j,m,p,q)=>{
       
       // apply impulses
       shape1.velocity = s(shape1.velocity, S(q = S(P, p), shape1.invMass));
-      shape2.velocity = A(shape2.velocity, S(q, shape2.invMass));
+      shape2.velocity = add(shape2.velocity, S(q, shape2.invMass));
       shape1.angularVelocity += -b * p * shape1.invInertia;
       shape2.angularVelocity += j * p * shape2.invInertia;
     }
@@ -512,7 +512,7 @@ up=(i,j,body1,body2,manifold,diff,dist)=>{
             manifold = {
               depth: body1.size1 + body2.size1 - dist,
               normal: n(diff),
-              contactPoint: A(body1.center, S(n(diff), body1.size1)),
+              contactPoint: add(body1.center, S(n(diff), body1.size1)),
               A: body1,
               B: body2
             };
@@ -690,114 +690,115 @@ restoreMaterial=i=>{
   i.rigiB.friction=i.rigiBFriction
 },
 
-// Joint handler (J1 style) - treat anchors like contact points and solve with impulses
-// This function applies impulses only (no direct position changes).
-hj=(i, j, Apos, Bpos, ra, rb, dpos, dist, normal, vA, vB, relV, relNormalVel, raCrossN, rbCrossN, invMassSum, impulse, bias, displacement)=>{
+// Handle joints
+hj = () => {
 
-  for(i=0; i<J.length; i++){
-  
-    j = J[i];
-    
-    // world positions of anchors
-    Apos = j.rigiA.anchorPoints[j.anchorA];
-    Bpos = j.rigiB.anchorPoints[j.anchorB];
-    
-    // relative vectors from centers
-    ra = s(Apos, j.rigiA.center);
-    rb = s(Bpos, j.rigiB.center);
-    
-    // delta between anchors
-    dpos = s(Bpos, Apos);
-    dist = l(dpos);
-    normal = dist > 1e-8 ? n(dpos) : V(1,0);
+  const baumgarte = 0.25;   // rigidité de correction (0.1–0.4)
+  const softness  = 0.0001; // compliance qui stabilise
 
-    // compute velocities at anchor points (linear + angular)
-    vA = A(j.rigiA.velocity, sc(j.rigiA,ra));
-    vB = A(j.rigiB.velocity, sc(j.rigiB,rb));
-    relV = s(vB, vA);
-    relNormalVel = d(relV, normal);
+  for(let j of J){
 
-    // effective mass along normal (including rotational contribution)
-    raCrossN = C(ra, normal);
-    rbCrossN = C(rb, normal);
-    invMassSum = j.rigiA.invMass + j.rigiB.invMass + raCrossN*raCrossN*j.rigiA.invInertia + rbCrossN*rbCrossN*j.rigiB.invInertia;
-    
-    // force joint
+    const A = j.rigiA;
+    const B = j.rigiB;
+
+    // ===== WORLD ANCHORS =====
+    const Apos = A.anchorPoints[j.anchorA];
+    const Bpos = B.anchorPoints[j.anchorB];
+
+    // relative vectors
+    const ra = s(Apos, A.center);
+    const rb = s(Bpos, B.center);
+
+    // separation
+    let dpos = s(Bpos, Apos);
+    let dist = l(dpos);
+    let normal = dist > 1e-9 ? n(dpos) : V(1,0);
+
+    // velocities at anchor points
+    const vA = add(A.velocity, sc(A, ra));
+    const vB = add(B.velocity, sc(B, rb));
+    const relV = s(vB, vA);
+    const relNormalVel = d(relV, normal);
+
+    // effective mass
+    const raCrossN = C(ra, normal);
+    const rbCrossN = C(rb, normal);
+
+    let invMassSum =
+      A.invMass + B.invMass +
+      raCrossN * raCrossN * A.invInertia +
+      rbCrossN * rbCrossN * B.invInertia;
+
+    // always add small softness
+    invMassSum += softness;
+
+    if(invMassSum === 0) continue;
+
+    // ==========================
+    //   JOINT TYPE BEHAVIOR
+    // ==========================
+
+    // ===== FORCE JOINT =====
     if(j.type === "force"){
-      
-      // pulling impulse proportional to separation
-      impulse = -j.strength * dist / 10000;
-      applyImpulse(j.rigiA, j.rigiB, impulse, normal, ra, rb);
+      const impulse = -(j.strength * dist) / 10000;
+      applyImpulse(A, B, impulse, normal, ra, rb);
+      continue;
     }
-    
-    // spring joint
-    else if(j.type === "spring"){
-    
-      // treat like a spring -> desired impulse proportional to displacement (stiffness)
-      displacement = dist - j.restLength;
-      
-      // bias to correct displacement (stiffness controls magnitude)
-      bias = - j.stiffness * displacement / 1000;
-      
-      // compute scalar impulse (divide by effective mass if available)
-      impulse = invMassSum > 0 ? bias / invMassSum : 0;
-      
-      applyImpulse(j.rigiA, j.rigiB, impulse, normal, ra, rb);
+
+    // ===== SPRING JOINT =====
+    if(j.type === "spring"){
+      const displacement = dist - j.restLength;
+      const bias = -(j.stiffness * displacement) / 1000;
+      const impulse = bias / invMassSum;
+      applyImpulse(A, B, impulse, normal, ra, rb);
+      continue;
     }
-    
-    // reverse force joint
-    else if(j.type === "reverseForce"){
-    
-      // apply impulse pushing anchors away when too close
-      displacement = Math.max(0, j.maxEffectDistance - dist);
-      impulse = j.strength * displacement / 10000;
-      applyImpulse(j.rigiA, j.rigiB, impulse, normal, ra, rb);
+
+    // ===== REVERSE FORCE JOINT =====
+    if(j.type === "reverseForce"){
+      const displacement = Math.max(0, j.maxEffectDistance - dist);
+      const impulse = (j.strength * displacement) / 10000;
+      applyImpulse(A, B, impulse, normal, ra, rb);
+      continue;
     }
-    
-    // hinge & fixed
-    else { //if(j.type === "hinge" || j.type === "fixed"){
-    
-      // solve linear anchor constraint as contact-like impulse with Baumgarte bias
-      // bias = k * penetration (we want anchors to stay together -> penetration = dist - initialLength)
-      let penetration = dist - j.initialLength;
-      let k_bias = 0.9; // bias factor
-      let bias = k_bias * penetration;
 
-      // relative normal velocity
-      let relNV = relNormalVel;
+    // ==========================
+    //   RIGID JOINTS (HINGE/FIXED)
+    // ==========================
 
-      // normal impulse scalar
-      let Jn = 0;
-      if(invMassSum>0){
-        Jn = ( - relNV + (-bias) ) / invMassSum; // negative bias to remove penetration
-      }
-      applyImpulse(j.rigiA, j.rigiB, Jn, normal, ra, rb);
+    // position bias: hinge & fixed want dist = 0
+    const bias = -(baumgarte * dist);
 
-      // For fixed joint, also enforce angular constraint (keep relative angle constant)
-      if(j.type==="fixed"){
-        // angle error = current relative angle - initial relative angle
-        let currentRelAngle = j.rigiB.angle - j.rigiA.angle;
-        let angleError = currentRelAngle - j.relativeAngle;
-        // wrap to [-PI,PI]
-        while(angleError > Math.PI) angleError -= Math.PI*2;
-        while(angleError < -Math.PI) angleError += Math.PI*2;
-        // bias for angle
-        let angBiasFactor = 0.2;
-        let angBias = angBiasFactor * angleError;
-        // relative angular velocity
-        let relAngVel = j.rigiB.angularVelocity - j.rigiA.angularVelocity;
-        // effective angular mass
-        let invIA = j.rigiA.invInertia, invIB = j.rigiB.invInertia;
-        let angDen = invIA + invIB;
-        if(angDen>0){
-          let Jang = ( - relAngVel + (-angBias) ) / angDen;
-          // apply angular impulses (change angular velocities)
-          if(j.rigiA.invMass !== 0) j.rigiA.angularVelocity += -Jang * invIA / invIA * invIA; // simplifies to -Jang*invIA
-          if(j.rigiB.invMass !== 0) j.rigiB.angularVelocity += Jang * invIB;
-          // simpler:
-          j.rigiA.angularVelocity += -Jang * invIA;
-          j.rigiB.angularVelocity += Jang * invIB;
-        }
+    // normal impulse
+    const impulse = (-relNormalVel + bias) / invMassSum;
+
+    const P = S(normal, impulse);
+
+    // linear impulses
+    if(A.invMass !== 0) A.velocity = s(A.velocity, S(P, A.invMass));
+    if(B.invMass !== 0) B.velocity = add(B.velocity, S(P, B.invMass));
+
+    // angular impulses
+    A.angularVelocity += -raCrossN * impulse * A.invInertia;
+    B.angularVelocity +=  rbCrossN * impulse * B.invInertia;
+
+    // ===== FIXED JOINT ANGULAR CORRECTION =====
+    if(j.type === "fixed"){
+
+      let current = B.angle - A.angle;
+      let target  = j.relativeAngle;
+      let err = current - target;
+
+      while (err >  Math.PI) err -= Math.PI*2;
+      while (err < -Math.PI) err += Math.PI*2;
+
+      const angBias = -(baumgarte * err);
+
+      const angMass = A.invInertia + B.invInertia;
+      if(angMass > 0){
+        const Jang = ( -(B.angularVelocity - A.angularVelocity) + angBias ) / angMass;
+        A.angularVelocity -= Jang * A.invInertia;
+        B.angularVelocity += Jang * B.invInertia;
       }
     }
   }
@@ -831,7 +832,7 @@ for(i=40;i--;){
 // Force joint
 r1 = shape("rectangle", V(400, 80), 90, 50, 0, .5, .5);
 a1 = aa(V(20,15), r1);
-c1 = shape("circle", V(450, 250), 30, 30, .8);
+c1 = shape("circle", V(450, 250), 30, 30, .5);
 a2 = aa(V(-20,10), c1);
 j1 = forceJoint(r1, a1, c1, a2, .95);
 
