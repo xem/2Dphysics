@@ -150,28 +150,34 @@ si=shape=>{
   if(shape.invMass!==0){
     
     // add force accumulator to velocity (proportionally to inverse mass)
-    shape.velocity=A(shape.velocity,S(shape.forceAccumulator,shape.invMass)),
+    shape.velocity=A(shape.velocity,S(shape.forceAccumulator,shape.invMass));
     
     // add velocity to position
-    ts(shape,shape.velocity),
+    ts(shape,shape.velocity);
     
     // damp velocity
-    shape.velocity=S(shape.velocity,.99),
+    shape.velocity=S(shape.velocity,.99);
+    
+    // zero tiny velocity
+    if(Math.abs(l(shape.velocity)) < .001) shape.velocity = V(0,0);
     
     // reset force accumulator
-    shape.forceAccumulator=V(0,0),
+    shape.forceAccumulator=V(0,0);
     
     // add torque to angular velocity (proportionally to inverse inertia)
-    shape.angularVelocity+=shape.torqueAccumulator*shape.invInertia,
+    shape.angularVelocity+=shape.torqueAccumulator*shape.invInertia;
     
     // add angular velocity to angle
-    rs(shape,shape.angularVelocity),
+    rs(shape,shape.angularVelocity);
     
     // damp angular velocity
-    shape.angularVelocity*=.99,
+    shape.angularVelocity*=.99;
+    
+    // zero tiny rotation
+    if(Math.abs(shape.angularVelocity) < .001 || Math.abs(l(shape.velocity)) < .001) shape.angularVelocity = 0;
     
     // reset torque accumulator
-    shape.torqueAccumulator=0
+    shape.torqueAccumulator=0;
   }
 },
 
@@ -480,7 +486,9 @@ up=(i,j,body1,body2,manifold,diff,dist)=>{
   }
 
   // integrate shapes
-  for(j of H) si(j);
+  for(j of H){
+    si(j);
+  }
 },
 
 // Render the scene
@@ -639,9 +647,9 @@ shape("rectangle", V(540, 300), 20, 580, 0, .5, .5);
 shape("rectangle", V(780, 300), 20, 580, 0, .5, .5);
 
 // Stress test
-for(i=40;i--;){
-  shape("circle", V(65 - i/2 + (i % 8) * 25, 55+ (i / 8) * 40), 10, 15, 10, .5, .5);
-  shape("rectangle", V(50 + i/2 + (i % 8) * 25, 35+ (i / 8) * 40), 20, 15, 10, .5, .5, );
+for(i=35;i--;){
+  shape("circle", V(65 - i/2 + (i % 8) * 25, 55+ (i / 8) * 40), 10, 15, 1, .5, .5);
+  shape("rectangle", V(50 + i/2 + (i % 8) * 25, 35+ (i / 8) * 40), 20, 15, 1, .5, .5, );
 }
 
 // Force joint
