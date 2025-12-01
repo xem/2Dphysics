@@ -11,56 +11,31 @@ n=v=>S(v,1/l(v)),             // normalize
 l=v=>d(v,v)**.5,              // length
 N=v=>V(v.y,-v.x),             // normal
 d=(x,y)=>x.x*y.x+x.y*y.y,     // dot
-add=(x,y)=>V(x.x+y.x,x.y+y.y),  // add
-s=(x,y)=>add(x,S(y,-1)),        // sub
+A=(x,y)=>V(x.x+y.x,x.y+y.y),  // add
+s=(x,y)=>A(x,S(y,-1)),        // sub
 S=(x,y)=>V(x.x*y,x.y*y),      // scale
-D=(x,y)=>l(s(x,y)),           // dist
-r=(x,y,c)=>(V((x.x-y.x)*Math.cos(c)-(x.y-y.y)*Math.sin(c)+y.x,(x.x-y.x)*Math.sin(c)+(x.y-y.y)*Math.cos(c)+y.y)), // rotate
 C=(x,y)=>x.x*y.y-x.y*y.x,     // cross
 
-// "Scalar cross" helper function
-// performs a scalar cross between an angular velocity and penetration vector
-// params: shape, penetration
+// rotate (point, origin, angle)
+r=(x,y,c)=>(V((x.x-y.x)*Math.cos(c)-(x.y-y.y)*Math.sin(c)+y.x,(x.x-y.x)*Math.sin(c)+(x.y-y.y)*Math.cos(c)+y.y)),
+
+// scalar cross (shape x penetration)
 sc=(shape,penetration)=>V(-shape.angularVelocity*penetration.y,shape.angularVelocity*penetration.x),
 
-// small helper to apply normal impulse (linear + angular)
-applyImpulse = (sA, sB, impulseScalar, normal, ra, rb, Imp) => {
-
-  //console.log(A, B, impulseScalar, normal, ra, rb);
-  
-  Imp = S(normal, impulseScalar);
-  
-  // linear
-  if(sA.invMass !== 0) sA.velocity = s(sA.velocity, S(Imp, sA.invMass));
-  if(sB.invMass !== 0) sB.velocity = add(sB.velocity, S(Imp, sB.invMass));
-  
-  // angular
-  sA.angularVelocity += -C(ra, normal) * impulseScalar * sA.invInertia;
-  sB.angularVelocity += C(rb, normal) * impulseScalar * sB.invInertia;
-};
-
-
 // Globals
-//m=0,p=0,          // mouse position, pressed
-//sr=0,sp=0,sa=0,   // selected rigidbody, position, anchor
 H=[],J=[],M=[],   // shapes, joints, manifolds
 G=V(0,.1),        // Gravity
-SOLVER_ITERS=20,  // solver iterations per frame
-
-// Event listeners
-//onmousemove=e=>m=V(e.pageX-a.offsetLeft,e.pageY-a.offsetTop),
-//onmousedown=onmouseup=e=>p=e.type[7],
 
 // Shapes
 shape=(
-  type,
-  center,
-  size1, // radius (circle) or width (rectangle)
-  size2, // height (rectangle only)
-  mass=1,
-  friction=0,
-  restitution=1,
-  color="#888",
+  type,         // type
+  center,       // center (V)
+  size1,        // radius (circle) or width (rectangle)
+  size2,        // height (rectangle only)
+  mass=1,       // mass
+  friction=0,   // friction
+  restitution=1,// restitution
+  color="#888", // color
 
   // inertia
   inertia=(
@@ -103,55 +78,31 @@ shape=(
   s           // return shape
 ),
 
-// Check if a point is inside a shape
-// params: point (world coordinates), shape
-/*pi=(point,shape,t=1,i=4)=>{
-
-  // circles: return true if radius is bigger than distance to center
-  if(shape.type==="circle")t=shape.size1>l(s(shape.center,point));
-  
-  // rectangles: return false if dot(sub(point,vertex),normal) > 0 for any edge
-  else for(;i--;)if(d(s(point,shape.vertices[i]),shape.normals[i])>0)t=0;
-  
-  return t
-},*/
-
 // Add an anchor to a shape
 // params: anchor (local coordinates), shape
 aa=(anchor,shape)=>(
   
   // add anchor in the point's anchors list (converted in world coordinates)
-  shape.anchorPoints.push(add(anchor,shape.center)),
+  shape.anchorPoints.push(A(anchor,shape.center)),
   
   // return anchor index
   shape.anchorPoints.length-1
 ),
-
-// Add force on a point
-// params: point (world coordinates), shape, force (2D vector)
-/*af=(point,shape,force)=>{
-
-  // translation force
-  shape.forceAccumulator=add(shape.forceAccumulator,force),
-  
-  // rotation force
-  shape.torqueAccumulator+=C(s(point,shape.center),force)
-},*/
 
 // Translate a shape
 // params: shape, offset (2D vector)
 ts=(shape,offset,n)=>{
 
   // add offset to the shape's center
-  shape.center=add(shape.center,offset);
+  shape.center=A(shape.center,offset);
   
   // add offset to the shape's vertices (if any)
-  for(n in shape.vertices)
-    shape.vertices[n]=add(shape.vertices[n],offset);
+  for(n=shape.vertices.length;n--;)
+    shape.vertices[n]=A(shape.vertices[n],offset);
     
   // add offset to the shape's anchor points
-  for(n in shape.anchorPoints)
-    shape.anchorPoints[n]=add(shape.anchorPoints[n],offset)
+  for(n=shape.anchorPoints.length;n--;)
+    shape.anchorPoints[n]=A(shape.anchorPoints[n],offset)
 },
 
 // Rotate a shape around its center
@@ -165,7 +116,7 @@ rs=(shape,angle,t)=>{
   if(shape.type==="rectangle"){
     
     // rotate rectangle vertices
-    for(t in shape.vertices)
+    for(t=shape.vertices.length;t--;)
       shape.vertices[t]=r(shape.vertices[t],shape.center,angle);
       
     // compute rectangle normals
@@ -177,6 +128,21 @@ rs=(shape,angle,t)=>{
     shape.anchorPoints[t]=r(shape.anchorPoints[t],shape.center,angle)
 },
 
+// Apply normal impulse (linear + angular)
+ai=(sA, sB, impulseScalar, normal, raCrossN, rbCrossN, doLinear=1, Imp) => {
+
+  // linear
+  if(doLinear){
+    Imp = S(normal, impulseScalar);
+    if(sA.invMass !== 0) sA.velocity = s(sA.velocity, S(Imp, sA.invMass));
+    if(sB.invMass !== 0) sB.velocity = A(sB.velocity, S(Imp, sB.invMass));
+  }
+  
+  // angular
+  sA.angularVelocity -= raCrossN * impulseScalar * sA.invInertia;
+  sB.angularVelocity += rbCrossN * impulseScalar * sB.invInertia;
+},
+
 // Shape integration
 si=shape=>{
 
@@ -184,7 +150,7 @@ si=shape=>{
   if(shape.invMass!==0){
     
     // add force accumulator to velocity (proportionally to inverse mass)
-    shape.velocity=add(shape.velocity,S(shape.forceAccumulator,shape.invMass)),
+    shape.velocity=A(shape.velocity,S(shape.forceAccumulator,shape.invMass)),
     
     // add velocity to position
     ts(shape,shape.velocity),
@@ -209,7 +175,7 @@ si=shape=>{
   }
 },
 
-// Compute the normals of a polygon
+// Compute the normals of a rectangle
 cn=(shape,t=0)=>{
 
   // rectangle only
@@ -330,7 +296,7 @@ cre=(circle,rect,normalscale,t,c,i=null,v=null,o=0,z,u)=>{
   ?{
     depth:-(u-circle.size1),
     normal:S(v,normalscale),
-    contactPoint:add(circle.center,S(v,-circle.size1)),
+    contactPoint:A(circle.center,S(v,-circle.size1)),
     A: circle,
     B: rect
   }
@@ -352,13 +318,6 @@ crc=(circle,rect,normalscale,t,c=0)=>{
   return null
 },
 
-/*// Correct positioning (kept for compatibility but not used in solver per your request)
-pc=(shape1,shape2,manifold,v)=>{
-  // intentionally left unused by solver (no direct position correction requested)
-  // kept so other code that references pc doesn't break
-},*/
-
-
 // Resolve collision
 // params: shape1, shape2, manifold
 rc=(manifold,shape1,shape2,a,o,v,u,M,B,x,F,P,b,j,m,p,q)=>{
@@ -373,14 +332,14 @@ rc=(manifold,shape1,shape2,a,o,v,u,M,B,x,F,P,b,j,m,p,q)=>{
 
     // relative velocity at contact point
     v = s(
-      add(
+      A(
         shape2.velocity,
         sc(
           shape2, 
           o = s(manifold.contactPoint, shape2.center)
         )
       ),
-      add(
+      A(
         shape1.velocity, 
         sc(
           shape1,
@@ -397,17 +356,10 @@ rc=(manifold,shape1,shape2,a,o,v,u,M,B,x,F,P,b,j,m,p,q)=>{
     B = manifold.depth * .5;
 
     // normal impulse scalar
-    x = (-(1 + Math.min(shape1.restitution, shape2.restitution)) * d(v, manifold.normal) + B)
-        /
-        (shape1.invMass + shape2.invMass + u*u*shape1.invInertia + M*M*shape2.invInertia);
+    x = (-(1 + Math.min(shape1.restitution, shape2.restitution)) * d(v, manifold.normal) + B) / (shape1.invMass + shape2.invMass + u*u*shape1.invInertia + M*M*shape2.invInertia);
 
-    // apply linear impulses (opposite directions)
-    shape1.velocity = s(shape1.velocity, S(F = S(manifold.normal, x), shape1.invMass));
-    shape2.velocity = add(shape2.velocity, S(F, shape2.invMass));
-
-    // apply angular impulses
-    shape1.angularVelocity += -u * x * shape1.invInertia;
-    shape2.angularVelocity += M * x * shape2.invInertia;
+    // apply impulses
+    ai(shape1, shape2, x, manifold.normal, u, M);
 
     // friction impulses
     
@@ -431,10 +383,7 @@ rc=(manifold,shape1,shape2,a,o,v,u,M,B,x,F,P,b,j,m,p,q)=>{
       if(Math.abs(p) > Math.abs(x) * m) p = Math.sign(p) * Math.abs(x) * m;
       
       // apply impulses
-      shape1.velocity = s(shape1.velocity, S(q = S(P, p), shape1.invMass));
-      shape2.velocity = add(shape2.velocity, S(q, shape2.invMass));
-      shape1.angularVelocity += -b * p * shape1.invInertia;
-      shape2.angularVelocity += j * p * shape2.invInertia;
+      ai(shape1, shape2, p, P, b, j);
     }
   }
 },
@@ -458,35 +407,13 @@ dl=(start,end,color="#888")=>(
   c.closePath()
 ),
 
-// Mouse interactions
-/*mi=(r,a,e,n,o)=>{
-  if(p)
-    for(r=0;r<H.length;r++)pi(m,H[r])&&0==sr&&(
-      sr=H[r],
-      sp=V(m.x,m.y),
-      e=s(m,H[r].center),
-      sa=aa(e,H[r])
-    );
-  else 0!=sr&&(
-    sr.anchorPoints.pop(),
-    sr=0
-  ),
-  sa=0,
-  sp=0;
-  sr&&sp&&(
-    n=sr.anchorPoints[sa],
-    o=s(m,n),
-    af(n,sr,S(o,.01))
-  )
-},*/
-
 // Update the physics engine
 up=(i,j,body1,body2,manifold,diff,dist)=>{
 
   // clear manifolds
   M = [];
   
-  // apply gravity as acceleration (F = m * g)
+  // reset acceleration and apply gravity (F = m * g)
   for(j of H){
     if(j.invMass !== 0) j.forceAccumulator = S(G, j.mass);
   }
@@ -512,7 +439,7 @@ up=(i,j,body1,body2,manifold,diff,dist)=>{
             manifold = {
               depth: body1.size1 + body2.size1 - dist,
               normal: n(diff),
-              contactPoint: add(body1.center, S(n(diff), body1.size1)),
+              contactPoint: A(body1.center, S(n(diff), body1.size1)),
               A: body1,
               B: body2
             };
@@ -541,7 +468,7 @@ up=(i,j,body1,body2,manifold,diff,dist)=>{
   }
 
   // resolve contact impulses and joint impulses multiple times
-  for(i = SOLVER_ITERS; i--;){
+  for(i = 20; i--;){
   
     // resolve contacts
     for(j of M){
@@ -554,9 +481,6 @@ up=(i,j,body1,body2,manifold,diff,dist)=>{
 
   // integrate shapes
   for(j of H) si(j);
-
-  // handle mouse interactions
-  // mi();
 },
 
 // Render the scene
@@ -593,216 +517,107 @@ dr=(e,r)=>{
   c.fillText("STRESS TEST", 100, 45);
   c.fillText("FORCE JOINT", 350, 45);
   c.fillText("SPRING JOINT", 600, 45);
-  c.fillText("REVERSE FORCE JOINT", 70, 325);
+  c.fillText("REPULSE JOINT", 70, 325);
   c.fillText("FIXED JOINT", 350, 325);
   c.fillText("HINGE JOINT", 600, 325);
 },
 
 // Joints
-
-// Force joint
-// params: shape1, anchor1, shape2, anchor2, strength
-forceJoint=(r,i,n,o,t)=>{
+// type: force/spring/repulse/hinge/fixed
+// length: restLength (spring), minDistance (repulse) 
+joint=(type,rigiA,anchorA,rigiB,anchorB,strength,length,relativeAngle)=>{
+  
+  // hinge/fixed: disable collisions
+  if(type === "hinge" || type === "fixed"){
+    rigiA.noCollision.push(H.indexOf(rigiB));
+    rigiB.noCollision.push(H.indexOf(rigiA));
+    relativeAngle=rigiB.angle-rigiA.angle;
+  }
+  
   return J.push({
-    type:"force",
-    rigiA:r,
-    anchorA:i,
-    rigiB:n,
-    anchorB:o,
-    strength:t
-  })
-},
-
-// Spring joint
-// params: shape1, anchor1, shape2, anchor2, stiffness, restLength
-springJoint=(r,i,n,s,t,e)=>{
-  return J.push({
-    type:"spring",
-    rigiA:r,
-    anchorA:i,
-    rigiB:n,
-    anchorB:s,
-    stiffness:t,
-    restLength:e
+    type,
+    rigiA,
+    anchorA,
+    rigiB,
+    anchorB,
+    strength,
+    length,
+    relativeAngle
   });
-},
-
-// Reverse force joint
-// params: shape1, anchor1, shape2, anchor2
-reverseForceJoint=(r,e,t,c,i,n)=>{
-  return J.push({
-    type:"reverseForce",
-    rigiA:r,
-    anchorA:e,
-    rigiB:t,
-    anchorB:c,
-    strength:i,
-    maxEffectDistance:n
-  })
-},
-
-// Fixed joint
-// params: shape1, anchor1, shape2, anchor2, iterations
-fixedJoint=(i,n,o,r,t=20)=>{
-  return i.noCollision.push(H.indexOf(o)),o.noCollision.push(H.indexOf(i)),J.push(e={
-    type:"fixed",
-    rigiA:i,
-    anchorA:n,
-    rigiB:o,
-    anchorB:r,
-    iterations:t,
-    rigiABounce:i.restitution,
-    rigiBBounce:o.restitution,
-    rigiAFriction:i.friction,
-    rigiBFriction:o.friction,
-    initialLength:l(s(i.anchorPoints[n],o.anchorPoints[r])),
-    relativeAngle:o.angle-i.angle
-  })
-},
-
-// Hinge joint
-// params: shape1, anchor1, shape2, anchor2, iterations
-hingeJoint=(i,n,o,r,t=20)=>{
-  return i.noCollision.push(H.indexOf(o)),o.noCollision.push(H.indexOf(i)),J.push(e={
-    type:"hinge",
-    rigiA:i,
-    anchorA:n,
-    rigiB:o,
-    anchorB:r,
-    iterations:t,
-    rigiABounce:i.restitution,
-    rigiBBounce:o.restitution,
-    rigiAFriction:i.friction,
-    rigiBFriction:o.friction,
-    initialLength:l(s(i.anchorPoints[n],o.anchorPoints[r]))
-  })
-},
-
-// Enable/disable friction and restitution in fixed/hinge joints 
-setMaterialZero=i=>{
-  i.rigiA.restitution=i.rigiA.friction=i.rigiB.restitution=i.rigiB.friction=0
-},
-
-restoreMaterial=i=>{
-  i.rigiA.restitution=i.rigiABounce,
-  i.rigiA.friction=i.rigiAFriction,
-  i.rigiB.restitution=i.rigiBBounce,
-  i.rigiB.friction=i.rigiBFriction
 },
 
 // Handle joints
 hj = () => {
 
-  const baumgarte = 0.25;   // rigidité de correction (0.1–0.4)
-  const softness  = 0.0001; // compliance qui stabilise
+  var baumgarte = 0.4,  // rigidity (0.1–0.4)
+  softness  = 0.01,     // stabilization
+  j, sA, B, Apos, Bpos, ra, rb, dpos, dist, normal, raCrossN, rbCrossN, invMassSum, err, angMass, totalInvMass;
+  
+  for(j of J){
 
-  for(let j of J){
+    sA = j.rigiA;
+    B = j.rigiB;
 
-    const A = j.rigiA;
-    const B = j.rigiB;
-
-    // ===== WORLD ANCHORS =====
-    const Apos = A.anchorPoints[j.anchorA];
-    const Bpos = B.anchorPoints[j.anchorB];
+    // world anchors
+    Apos = sA.anchorPoints[j.anchorA];
+    Bpos = B.anchorPoints[j.anchorB];
 
     // relative vectors
-    const ra = s(Apos, A.center);
-    const rb = s(Bpos, B.center);
+    ra = s(Apos, sA.center);
+    rb = s(Bpos, B.center);
 
     // separation
-    let dpos = s(Bpos, Apos);
-    let dist = l(dpos);
-    let normal = dist > 1e-9 ? n(dpos) : V(1,0);
-
-    // velocities at anchor points
-    const vA = add(A.velocity, sc(A, ra));
-    const vB = add(B.velocity, sc(B, rb));
-    const relV = s(vB, vA);
-    const relNormalVel = d(relV, normal);
-
+    dpos = s(Bpos, Apos);
+    dist = l(dpos);
+    normal = dist > 0 ? n(dpos) : V(1,0);
+    
     // effective mass
-    const raCrossN = C(ra, normal);
-    const rbCrossN = C(rb, normal);
+    raCrossN = C(ra, normal);
+    rbCrossN = C(rb, normal);
+    invMassSum = sA.invMass + B.invMass + raCrossN * raCrossN * sA.invInertia + rbCrossN * rbCrossN * B.invInertia + softness;
 
-    let invMassSum =
-      A.invMass + B.invMass +
-      raCrossN * raCrossN * A.invInertia +
-      rbCrossN * rbCrossN * B.invInertia;
+    if(invMassSum !== 0){
 
-    // always add small softness
-    invMassSum += softness;
+      // force joint
+      if(j.type === "force"){
+        ai(sA, B, (-(j.strength * dist) / 10000), normal, raCrossN, rbCrossN);
+      }
 
-    if(invMassSum === 0) continue;
+      // spring joint
+      else if(j.type === "spring"){
+        ai(sA, B, ((-(j.strength * (dist - j.length)) / 1000) / invMassSum), normal, raCrossN, rbCrossN);
+      }
 
-    // ==========================
-    //   JOINT TYPE BEHAVIOR
-    // ==========================
+      // repulsion joint
+      else if(j.type === "repulse"){
+        ai(sA, B, ((j.strength * Math.max(0, j.length - dist)) / 10000), normal, raCrossN, rbCrossN);
+      }
 
-    // ===== FORCE JOINT =====
-    if(j.type === "force"){
-      const impulse = -(j.strength * dist) / 10000;
-      applyImpulse(A, B, impulse, normal, ra, rb);
-      continue;
-    }
+      // hinge / fixed
+      else {
 
-    // ===== SPRING JOINT =====
-    if(j.type === "spring"){
-      const displacement = dist - j.restLength;
-      const bias = -(j.stiffness * displacement) / 1000;
-      const impulse = bias / invMassSum;
-      applyImpulse(A, B, impulse, normal, ra, rb);
-      continue;
-    }
+        // linear impulses
+        ai(sA, B, (-(d(s(A(B.velocity, sc(B, rb)), A(sA.velocity, sc(sA, ra))), normal)) + (-(baumgarte * dist))) / invMassSum, normal, raCrossN, rbCrossN)
 
-    // ===== REVERSE FORCE JOINT =====
-    if(j.type === "reverseForce"){
-      const displacement = Math.max(0, j.maxEffectDistance - dist);
-      const impulse = (j.strength * displacement) / 10000;
-      applyImpulse(A, B, impulse, normal, ra, rb);
-      continue;
-    }
+        // angular correction (fixed only)
+        if(j.type === "fixed"){
+          err = (B.angle - sA.angle) - (j.relativeAngle);
+          angMass = sA.invInertia + B.invInertia;
+          if(angMass > 0){
+            ai(sA, B, (-(B.angularVelocity - sA.angularVelocity) + (-(baumgarte * err)) ) / angMass, 0, 1, 1, 0);
+          }
+        }
 
-    // ==========================
-    //   RIGID JOINTS (HINGE/FIXED)
-    // ==========================
-
-    // position bias: hinge & fixed want dist = 0
-    const bias = -(baumgarte * dist);
-
-    // normal impulse
-    const impulse = (-relNormalVel + bias) / invMassSum;
-
-    const P = S(normal, impulse);
-
-    // linear impulses
-    if(A.invMass !== 0) A.velocity = s(A.velocity, S(P, A.invMass));
-    if(B.invMass !== 0) B.velocity = add(B.velocity, S(P, B.invMass));
-
-    // angular impulses
-    A.angularVelocity += -raCrossN * impulse * A.invInertia;
-    B.angularVelocity +=  rbCrossN * impulse * B.invInertia;
-
-    // ===== FIXED JOINT ANGULAR CORRECTION =====
-    if(j.type === "fixed"){
-
-      let current = B.angle - A.angle;
-      let target  = j.relativeAngle;
-      let err = current - target;
-
-      while (err >  Math.PI) err -= Math.PI*2;
-      while (err < -Math.PI) err += Math.PI*2;
-
-      const angBias = -(baumgarte * err);
-
-      const angMass = A.invInertia + B.invInertia;
-      if(angMass > 0){
-        const Jang = ( -(B.angularVelocity - A.angularVelocity) + angBias ) / angMass;
-        A.angularVelocity -= Jang * A.invInertia;
-        B.angularVelocity += Jang * B.invInertia;
+        // position correction (anchors superposed)
+        if(dist > 0){
+          totalInvMass = sA.invMass + B.invMass;
+          if(sA.invMass !== 0) ts(sA, S(dpos, (sA.invMass / totalInvMass)));
+          if(B.invMass !== 0) ts(B, S(dpos, -(B.invMass / totalInvMass)));
+        }
       }
     }
   }
-};
+},
 
 // Main loop
 setInterval(() => {
@@ -834,16 +649,16 @@ r1 = shape("rectangle", V(400, 80), 90, 50, 0, .5, .5);
 a1 = aa(V(20,15), r1);
 c1 = shape("circle", V(450, 250), 30, 30, .5);
 a2 = aa(V(-20,10), c1);
-j1 = forceJoint(r1, a1, c1, a2, .95);
+j1 = joint("force", r1, a1, c1, a2, .95);
 
 // Spring joint
 r1 = shape("rectangle", V(630, 80), 90, 50, 0, .5, .5);
 a1 = aa(V(20,15), r1);
 c1 = shape("circle", V(590, 250), 30, 30, 1);
 a2 = aa(V(0,-10), c1);
-j2 = springJoint(r1, a1, c1, a2, .2, 80);
+j2 = joint("spring", r1, a1, c1, a2, .2, 80);
 
-// Reverse force joint
+// repulse force joint
 for(i=10;i--;){
   shape("circle", V(180+Math.random() * 30, 520+Math.random() * 20), Math.random()*5+5, 10, 10, .5, .5);
 }
@@ -851,23 +666,23 @@ r1 = shape("rectangle", V(100, 520), 90, 50, 0, .5, .5);
 a1 = aa(V(0,-25), r1);
 c1 = shape("circle", V(120, 480), 30, 0, 1);
 a2 = aa(V(-20,0), c1);
-j1 = reverseForceJoint(r1, a1, c1, a2, .2, 200);
+j1 =joint("repulse", r1, a1, c1, a2, .2, 200);
 
 // Fixed joint
 for(i=20;i--;){
   shape("circle", V(300+Math.random() * (780/3 - 50), 520+Math.random() * 20), Math.random()*5+5, 10,10, .5, .5);
 }
-r1 = shape("rectangle", V(400, 420), 90, 50, 1, .5, .5);
+r1 = shape("rectangle", V(400, 420), 90, 50, 10, .5, .5);
 a1 = aa(V(0,-15), r1);
-c1 = shape("circle", V(400, 400), 30, 30, 1);
+c1 = shape("circle", V(400, 400), 30, 30, 10);
 a2 = aa(V(0,20), c1);
-j4 = fixedJoint(r1, a1, c1, a2, 20);
+j4 = joint("fixed", r1, a1, c1, a2);
 
 // Hinge joint
 r1 = shape("rectangle", V(630, 460), 90, 50, 0, .5, .5);
 a1 = aa(V(20,15), r1);
-c1 = shape("circle", V(640, 440), 30, 30, 100);
+c1 = shape("circle", V(665, 465), 30, 30, 100);
 a2 = aa(V(-20,10), c1);
-j4 = hingeJoint(r1, a1, c1, a2, 20);
+j4 = joint("hinge", r1, a1, c1, a2);
 
 </script>
