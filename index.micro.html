@@ -1,0 +1,111 @@
+<!doctype html>
+<canvas id=a width=800 height=600 style="background:#eee"></canvas>
+<script>
+
+
+// ==== 2Dphysics ====
+
+H=[],n=x=>S(x,1/l(x)),l=x=>d(x,x)**.5,d=(x,y)=>x[0]*y[0]+x[1]*y[1],A=(x,y)=>[x[0]+y[0],x[1]+y[1]],s=(x,y)=>A(x,S(y,-1)),S=(x,y)=>[x[0]*y,x[1]*y],C=(x,y)=>x[0]*y[1]-x[1]*y[0],r=(x,y,l)=>[(x[0]-y[0])*Math.cos(l)-(x[1]-y[1])*Math.sin(l)+y[0],(x[0]-y[0])*Math.sin(l)+(x[1]-y[1])*Math.cos(l)+y[1]],x=(x,y)=>[-x.A*y[1],x.A*y[0]],t=(c,t,l=4)=>{if(!c.t)for(;l--;)c.V[l]=A(c.V[l],t);c.c=A(c.c,t)},o=(c,t,l=4)=>{if(!c.t){for(;l--;)c.V[l]=r(c.V[l],c.c,t);N(c)}},I=(c,t,l,e,a,n,r=1,o)=>{r&&(o=S(e,l),c.M&&(c.v=s(c.v,S(o,c.M))),t.M&&(t.v=A(t.v,S(o,t.M)))),c.A-=a*l*c.I,t.A+=n*l*t.I},N=(c,t=4,l)=>{for(;t--;)l=n(s(c.V[(t+1)%4],c.V[t])),c.n[t]=[l[1],-l[0]]},P=(c,t,l=0,e=9e9,a=4,n,r,o,f)=>{for(;a--;){for(n=0,r=0,f=4;f--;)(o=d(s(t.V[f],c.V[a]),S(c.n[a],-1)))>n&&(n=o,r={v:t.V[f],d:o});if(!r)return 0;r.d<e&&(l={d:e=r.d,n:c.n[a],c:r.v,A:c,B:t})}return l};h=(t,c,w,h,m=1,f=0,r=1,a=0,v=[0,0],A=0,d,i=t?m*w*w/2:m*(w*w+h*h)/12,s={t,c,w,h,m,f,r,a,v,A,d,i,M:m?1/m:0,I:i?1/i:0,F:[0,0],T:0,n:[],V:t?0:[[c[0]-w/2,c[1]-h/2],[c[0]+w/2,c[1]-h/2],[c[0]+w/2,c[1]+h/2],[c[0]-w/2,c[1]+h/2]],e:H.length})=>(o(s,s.a),H.push(s),s),M=(c,e,a,r,f,i,h,y,T,p,v,b,w,N,g,u)=>{for(e of(M=[],H))e.M&&(e.F=S(G,e.m<0?-e.m*e.m:e.m));for(e=H.length;e--;)for(c=e-1;c>=0;c--)if(a=H[e],r=H[c],(a.M+r.M)){if(f=0,a.t&&r.t)i=s(r.c,a.c),(h=l(i))<a.w+r.w&&(f={d:a.w+r.w-h,n:n(i),c:A(a.c,S(n(i),a.w)),A:a,B:r});else if(!a.t&&!r.t)(f=P(a,r))&&((y=P(r,a))||(f=0),y.d<f.d&&(f=y));else{for(!a.t&&r.t&&([r,a]=[a,r]),v=0,h=4;h--;)y=s(a.c,r.V[h]),T=s(r.V[(h+1)%4],r.V[h]),p=d(y,n(T)),r.n[h]&&d(y,r.n[h])>=0&&p>0&&p<l(T)&&(v=r.V[h],i=r.n[h]);if(!(f=v&&(b=d(i,s(a.c,v)))-a.w<0?{d:-b+a.w,n:S(i,-1),c:A(a.c,S(i,-a.w)),A:a,B:r}:0))for(h=4;h--;)T=s(r.V[h],a.c),l(T)<a.w&&(f={d:a.w-l(T),n:n(T),c:r.V[h],A:a,B:r})}f&&M.push(f)}for(c=R;c--;){for(e of M)a=e.A,r=e.B,(a.M+r.M)&&(f=s(A(r.v,x(r,v=s(e.c,r.c))),A(a.v,x(a,b=s(e.c,a.c)))),i=C(b,e.n),h=C(v,e.n),y=e.d*O,T=(-(1+Math.min(a.r,r.r))*d(f,e.n)+y)/(a.M+r.M+i*i*a.I+h*h*r.I),I(a,r,T,e.n,i,h),p=S(s(f,S(e.n,d(f,e.n))),-1),l(p)>0&&(w=C(b,p=n(p)),N=C(v,p),g=Math.min(a.f,r.f),u=-d(f,p)/(a.M+r.M+w*w*a.I+N*N*r.I),Math.abs(u)>Math.abs(T)*g&&(u=Math.sign(u)*Math.abs(T)*g),I(a,r,u,p,w,N)))}for(e of H)e.M&&(e.v=A(e.v,S(e.F,e.M<0?-e.M:e.M)),t(e,e.v),e.v=S(e.v,.99),Math.abs(l(e.v))<1e-4&&(e.v=[0,0]),e.F=[0,0],e.A+=e.T*e.I,e.a+=e.A,o(e,e.A),e.A*=.99,Math.abs(e.A)<1e-4&&(e.A=0),e.T=0);D()}
+
+// ==== Renderer (customizable) ====
+
+// =========== Renderer (customizable) ==============
+
+D = (e, r) => {
+  
+  // reset canvas
+  a.width ^= 0;
+  
+  // D H
+  for(e of H){
+    
+    c.save(),
+    c.beginPath(),
+    
+    // circle
+    e.t
+    ?(
+      c.fillStyle=e.d||"#bbb",
+      c.translate(e.c[0],e.c[1]),
+      c.rotate(e.a),
+      c.arc(0,0,e.w,0,7),
+      c.lineTo(0,0),
+      c.closePath(),
+      c.fill(),
+      c.stroke()
+    )
+    
+    // rectangle
+    :(
+      c.fillStyle=e.d||"#bbb",
+      c.moveTo(e.V[0][0],e.V[0][1]),
+      c.lineTo(e.V[1][0],e.V[1][1]),
+      c.lineTo(e.V[2][0],e.V[2][1]),
+      c.lineTo(e.V[3][0],e.V[3][1]),
+      c.closePath(),
+      c.fill(),
+      c.stroke()
+    ),
+    
+    c.restore();
+  
+  }
+  
+
+    
+  // text
+  c.fillStyle="#000";
+  c.font="bold 15px arial";
+  c.fillText("STRESS TEST", 100, 65);
+  c.fillText("INITIAL ANGLE / VELOCITY,", 310, 65);
+  c.fillText("ANTIGRAVITY, COLOR", 330, 90);
+},
+
+// ==== User code ====
+
+// Canvas setup
+c = a.getContext`2d`,
+
+// Customization
+G = [0,.1],    // Gravity
+O = 0.4,        // Shapes overlap correction
+E = 0.01,       // Fixed joints elasticity
+R = 20,         // Resolutions per frame
+
+// Shape constants
+RECTANGLE = 0,
+CIRCLE = 1,
+
+// jointsoints constants
+SPRING = 0,
+REPULSIVE = 1,
+FIXED = 2,
+HINGE = 3,
+
+// Demo
+
+// Grid
+h(RECTANGLE, [400, 20], 780, 20, 0, .5, .5);
+h(RECTANGLE, [400, 300], 780, 20, 0, .5, .5);
+h(RECTANGLE, [400, 580], 780, 20, 0, .5, .5);
+h(RECTANGLE, [20, 300], 20, 580, 0, .5, .5);
+h(RECTANGLE, [280, 300], 20, 580, 0, .5, .5);
+h(RECTANGLE, [540, 300], 20, 580, 0, .5, .5);
+h(RECTANGLE, [780, 300], 20, 580, 0, .5, .5);
+
+// Stress test
+for(i=35;i--;){
+  h(CIRCLE, [65 - i/2 + (i % 8) * 25, 55+ (i / 8) * 40], 10, 15, 1, .5, .5);
+  h(RECTANGLE, [50 + i/2 + (i % 8) * 25, 35+ (i / 8) * 40], 20, 15, 1, .5, .5);
+}
+
+// Use all params / numeric types / anti gravity shapes
+r1 = h(1, [370, 80], 30, 30, 1, .5, .5, .6, [1,-1], -.1, "#dcb");
+r2 = h(0, [400, 230], 90, 50, 0, .5, .5, .2, [0,0], 0, "#def");
+r3 = h(1, [390, 270], 10, 10, -1, .5, .5, .2, [0,0], 0, "#dfe");
+r3 = h(1, [410, 270], 10, 10, -.5, .5, .5, .2, [0,0], 0, "#efd");
+r3 = h(1, [430, 270], 10, 10, -.2, .5, .5, .2, [0,0], 0, "#edf");
+
+// Main loop
+setInterval(M, 16);
+</script>
