@@ -8,9 +8,9 @@
 //  API
 // -----
 
-// - shape(type, center, width, height, mass, friction, restitution, angle, velocity, angularVelocity, customData): shape constructor
-// - anchor(shape, anchor): anchor constructor
-// - joint(type, shape1, anchor1, shape2, anchor2, strength, length): joint constructor
+// - shape(type, center, mass, width, height, {f: friction, r:restitution, a: angle, v: velocity, a: angularVelocity, g: gravity, d: customData)
+// - anchor(shape, position)
+// - joint(type, shape1, anchor1, shape2, anchor2, strength, length)
 // - run(): run simulation
 // - draw(): renderer (customizable)
 

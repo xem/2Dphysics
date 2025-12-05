@@ -65,8 +65,6 @@ x=(shape,penetration)=>(        // scalar cross (shape x penetration)
 // Transform a shape
 // params: shape, offset, angle
 X = (shape, offset, angle, t = 4) => {
-
-  //console.log(shape);
   
   // add offset to the shape's center
   shape.c = p(shape.c, offset);
