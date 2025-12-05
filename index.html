@@ -67,6 +67,8 @@ x=(shape,penetration)=>(        // scalar cross (shape x penetration)
 // Transform a shape
 // params: shape, offset, angle
 X = (shape, offset, angle, t = 4) => {
+
+  //console.log(shape);
   
   // add offset to the shape's center
   shape.c = p(shape.c, offset);
@@ -74,16 +76,14 @@ X = (shape, offset, angle, t = 4) => {
   // add offset / angle to the shape's vertices (rectangle only)
   if(!shape.t){
     for(; t--;){
-      shape.V[t] = p(shape.V[t], offset);
       shape.n[t] = r(shape.n[t], [0,0], angle);
-      shape.V[t] = r(shape.V[t], shape.c, angle);
+      shape.V[t] = r(p(shape.V[t], offset), shape.c, angle);
     }
   }
   
   // add offset to the shape's anchor points
   for(t in shape.p){
-    shape.p[t] = p(shape.p[t], offset);
-    shape.p[t] = r(shape.p[t], shape.c, angle);
+    shape.p[t] = r(p(shape.p[t], offset), shape.c, angle);
   }
 },
 
@@ -153,6 +153,7 @@ shape = (t, c, m = 1, w = 9, h = 9, o,
     ...o,        // custom options
   }
 ) => (
+  //console.log(s),
   X(s, c, s.a),         // rotate / translate the shape
   shapes.push(s),       // add shape in shapes list
   s                     // return shape
@@ -189,7 +190,7 @@ joint = (t, A, a, B, b, s, l) => {
     l = B.a - A.a;
   }
   
-  return joints.push({
+  joints.push({
     t,
     A,
     a,
