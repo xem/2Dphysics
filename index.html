@@ -23,10 +23,9 @@ E = .01;        // Fixed joints elasticity
 R = 20;         // Resolutions per frame
 
 // Arrays
-shapes = [];    // shapes list (circles & rectangles)
-joints = [];    // joints list (spring, repulsive, fixed or hinge)
-M = [];         // manifolds
-anchors = [];   // anchors
+H = [];    // shapes (circles, rectangles)
+J = [];    // joints (spring, repulsive, fixed, hinge)
+M = [];    // manifolds
 
 // Shapes types
 RECTANGLE = 0;
@@ -149,17 +148,15 @@ shape = (t, c, m = 1, w = 9, h = 9, o,
       [-w / 2, h / 2]
     ],
     
-    e: shapes.length,    // index in shapes list
+    e: H.length,    // index in shapes list
     ...o,        // custom options
   }
 ) => (
   //console.log(s),
   X(s, c, s.a),         // rotate / translate the shape
-  shapes.push(s),       // add shape in shapes list
+  H.push(s),       // add shape in shapes list
   s                     // return shape
 ),
-
-//shape=(t,c,m=1,w=9,h=9,g,n=t?m*w*w/2:m*(w*w+h*h)/12,s={t,m,w,h,c:[0,0],f:.5,r:.5,a:0,v:[0,0],A:0,g:G,F:[0,0],T:0,p:[],N:[],n:[[0,-1],[1,0],[0,1],[-1,0]],M:m?1/m:0,I:n?1/n:0,V:[[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2,h/2]],e:shapes.length,...g})=>(X(s,c,s.a),shapes.push(s),s),
 
 // Add an anchor to a shape
 // params: anchor (local coordinates), shape
@@ -190,7 +187,7 @@ joint = (t, A, a, B, b, s, l) => {
     l = B.a - A.a;
   }
   
-  joints.push({
+  J.push({
     t,
     A,
     a,
@@ -211,7 +208,7 @@ run = (
   t4,           // rect-rect manifold 2 / baumgarte bias / separation / vertex-circle vector / SAT best vertex
   t5,           // normal impulse scalar / relative vector 1 / vector vetween vertices / SAT best support point
   t6,           // tangent / relative vector 2 / circle-rect projection / SAT best penetration
-  t7,           // scalar1 / separation normal / best vertex
+  t7,           // scalar1 / separation normal / best vertex / support point loop var
   t8,           // scalar2 / raCrossN / edge-circle distance
   t9,           // effective mass along tangent 1 / rbCrossN
   t10,          // effective mass along tangent 2 / invMass proportional sum
@@ -223,10 +220,10 @@ run = (
   M = [];
 
   // collision detection
-  for(j = shapes.length; j--;){
+  for(j = H.length; j--;){
     for(i = j - 1; i >= 0; i--){
-      body1 = shapes[j],
-      body2 = shapes[i];
+      body1 = H[j],
+      body2 = H[i];
       
       // for each shape of the outer loop:
       // reset acceleration and apply gravity
@@ -271,13 +268,13 @@ run = (
               // find support point
               t4 = 0;
               t5 = 0;
-              for(pp = 4; pp--;){
+              for(t7 = 4; t7--;){
                 
                 // if penetration depth is higher than max depth, save it in t6, save the vertex in t4 and save the support point in t5
-                if((t6 = d(s(body2.V[pp], body1.V[t3]), S(body1.n[t3], -1))) > t4){
+                if((t6 = d(s(body2.V[t7], body1.V[t3]), S(body1.n[t3], -1))) > t4){
                   t4 = t6;
                   t5 = {
-                    v: body2.V[pp],  // vertex
+                    v: body2.V[t7],  // vertex
                     d: t6        // depth
                   }
                 }
@@ -444,7 +441,7 @@ run = (
     }
     
     // resolve joints as contact-like constraints
-    for(k of joints){
+    for(k of J){
       body1 = k.A;
       body2 = k.B;
 
@@ -507,7 +504,7 @@ run = (
   }
 
   // integrate shapes
-  for(j of shapes){
+  for(j of H){
 
     // skip fixed objects
     if(j.M){
@@ -555,7 +552,7 @@ draw = (e, r) => {
   a.width ^= 0;
   
   // draw shapes
-  for(e of shapes){
+  for(e of H){
     
     c.save(),
     c.beginPath(),
@@ -598,7 +595,7 @@ draw = (e, r) => {
   }
   
   // joints
-  for(e of joints){
+  for(e of J){
     c.beginPath(),
     c.strokeStyle="#fa0",
     c.moveTo(e.A.p[e.a][0],e.A.p[e.a][1]),
