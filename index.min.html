@@ -1,5 +1,5 @@
 <!doctype html>
-<canvas id=a width=800 height=600 style="background:#eee"></canvas>
+<canvas id=a width=1100 height=600 style="background:#eee"></canvas>
 <script>
 
 
@@ -38,7 +38,7 @@ REPULSIVE = 1;
 HINGE = 2;
 FIXED = 3;
 
-((n=x=>S(x,1/l(x)),l=x=>d(x,x)**.5,d=(x,y)=>x[0]*y[0]+x[1]*y[1],p=(x,y)=>[x[0]+y[0],x[1]+y[1]],s=(x,y)=>p(x,S(y,-1)),S=(x,y)=>[x[0]*y,x[1]*y],C=(x,y)=>x[0]*y[1]-x[1]*y[0],r=(x,y,l)=>[(x[0]-y[0])*Math.cos(l)-(x[1]-y[1])*Math.sin(l)+y[0],(x[0]-y[0])*Math.sin(l)+(x[1]-y[1])*Math.cos(l)+y[1]],x=(x,y)=>[-x.A*y[1],x.A*y[0]],X=(c,f,n,i=4)=>{if(c.c=p(c.c,f),!c.t)for(;i--;)c.n[i]=r(c.n[i],[0,0],n),c.V[i]=r(p(c.V[i],f),c.c,n);for(i in c.p)c.p[i]=r(p(c.p[i],f),c.c,n)},I=(c,t,l,e,a,n,r=1,o)=>{r&&(o=S(e,l),c.v=s(c.v,S(o,c.M)),t.v=p(t.v,S(o,t.M))),c.A-=a*l*c.I,t.A+=n*l*t.I})=>{shape=(t,c,m=1,w=9,h=9,g,n=t?m*w*w/2:m*(w*w+h*h)/12,s={t,m,w,h,c:[0,0],f:.5,r:.5,a:0,v:[0,0],A:0,g:G,F:[0,0],T:0,p:[],N:[],n:[[0,-1],[1,0],[0,1],[-1,0]],M:m?1/m:0,I:n?1/n:0,V:[[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2,h/2]],e:H.length,...g})=>(X(s,c,s.a),H.push(s),s),anchor=(c,t)=>(t.p.push(p(c,t.c)),t.p.length-1),joint=(t,A,a,B,b,s,l)=>{if(t>1){A.N.push(B.e);B.N.push(A.e);l=B.a-A.a}J.push({t,A,a,B,b,s,l})},run=(a,f,t,c,e,h,o,r,A,v,w,i,V,b,B,m,g)=>{for(M=[],f=H.length;f--;)for(a=f-1;a>=0;a--)if(c=H[f],e=H[a],c.F=S(c.g,c.m),c.M+e.M&&!c.N.includes(a)){if(h=0,c.t&&e.t)o=s(e.c,c.c),(r=l(o))<c.w+e.w&&(h={d:c.w+e.w-r,n:n(o),c:p(c.c,S(n(o),c.w)),A:c,B:e});else if(c.t||e.t){for(!c.t&&e.t&&([e,c]=[c,e]),i=0,r=4;r--;)A=s(c.c,e.V[r]),v=s(e.V[(r+1)%4],e.V[r]),w=d(A,n(v)),e.n[r]&&d(A,e.n[r])>=0&&w>0&&w<l(v)&&(i=e.V[r],o=e.n[r]);if(!(h=i&&(V=d(o,s(c.c,i)))-c.w<0?{d:-V+c.w,n:S(o,-1),c:p(c.c,S(o,-c.w)),A:c,B:e}:0))for(r=4;r--;)v=s(e.V[r],c.c),l(v)<c.w&&(h={d:c.w-l(v),n:n(v),c:e.V[r],A:c,B:e})}else for(o=9e9,h=-1,t=2;t--;)for(t||([c,e]=[e,c]),r=4;r--;){for(A=0,v=0,i=4;i--;)(w=d(s(e.V[i],c.V[r]),S(c.n[r],-1)))>A&&(A=w,v={v:e.V[i],d:w});v||(h=0),h&&v.d<o&&(h={d:o=v.d,n:c.n[r],c:v.v,A:c,B:e})}h&&M.push(h)}for(a=R;a--;){for(f of M)c=f.A,e=f.B,h=s(p(e.v,x(e,i=s(f.c,e.c))),p(c.v,x(c,V=s(f.c,c.c)))),o=C(V,f.n),r=C(i,f.n),A=f.d*O,v=(-(1+Math.min(c.r,e.r))*d(h,f.n)+A)/(c.M+e.M+o*o*c.I+r*r*e.I),I(c,e,v,f.n,o,r),w=S(s(h,S(f.n,d(h,f.n))),-1),l(w)>0&&(b=C(V,w=n(w)),B=C(i,w),m=Math.min(c.f,e.f),g=-d(h,w)/(c.M+e.M+b*b*c.I+B*B*e.I),Math.abs(g)>Math.abs(v)*m&&(g=Math.sign(g)*Math.abs(v)*m),I(c,e,g,w,b,B));for(t of J)c=t.A,e=t.B,h=c.p[t.a],o=e.p[t.b],v=s(h,c.c),w=s(o,e.c),A=s(o,h),i=(r=l(A))>0?n(A):[1,0],V=C(v,i),b=C(w,i),(B=c.M+e.M+V*V*c.I+b*b*e.I+E)&&(t.t?t.t<2?I(c,e,t.s*Math.max(0,t.l-r)/1e4,i,V,b):(I(c,e,(-d(s(p(e.v,x(e,w)),p(c.v,x(c,v))),i)+-O*r)/B,i,V,b),t.t>2&&(m=e.a-c.a-t.l,(g=c.I+e.I)&&I(c,e,(-(e.A-c.A)+-O*m)/g,0,1,1,0)),r>0&&(B=c.M+e.M,X(c,S(A,c.M/B),0),X(e,S(A,-e.M/B),0))):(I(c,e,-t.s*(r-t.l)/1e3/B,i,V,b),I(c,e,-t.s*(r-t.l)/1e3/B,i,V,b)))}for(f of H)f.M&&(f.v=p(f.v,S(f.F,f.M<0?-f.M:f.M)),f.F=[0,0],f.A+=f.T*f.I,f.a+=f.A,X(f,f.v,f.A),f.v=S(f.v,.99),Math.abs(l(f.v))<1e-4&&(f.v=[0,0]),f.A*=.99,Math.abs(f.A)<1e-4&&(f.A=0),f.T=0)}})()
+((n=x=>S(x,1/l(x)),l=x=>d(x,x)**.5,d=(x,y)=>x[0]*y[0]+x[1]*y[1],p=(x,y)=>[x[0]+y[0],x[1]+y[1]],s=(x,y)=>p(x,S(y,-1)),S=(x,y)=>[x[0]*y,x[1]*y],C=(x,y)=>x[0]*y[1]-x[1]*y[0],r=(x,y,l)=>[(x[0]-y[0])*Math.cos(l)-(x[1]-y[1])*Math.sin(l)+y[0],(x[0]-y[0])*Math.sin(l)+(x[1]-y[1])*Math.cos(l)+y[1]],x=(x,y)=>[-x.A*y[1],x.A*y[0]],X=(c,f,n,i=4)=>{if(c.c=p(c.c,f),!c.t)for(;i--;)c.n[i]=r(c.n[i],[0,0],n),c.V[i]=r(p(c.V[i],f),c.c,n);for(i in c.p)c.p[i]=r(p(c.p[i],f),c.c,n)},I=(c,t,l,e,a,n,r=1,o)=>{r&&(o=S(e,l),c.v=s(c.v,S(o,c.M)),t.v=p(t.v,S(o,t.M))),c.A-=a*l*c.I,t.A+=n*l*t.I})=>{shape=(t,c,m=1,w=9,h=9,g,n=t?m*w*w/2:m*(w*w+h*h)/12,s={t,m,w,h,c:[0,0],f:.5,r:.5,a:0,v:[0,0],A:0,g:G,F:[0,0],T:0,p:[],N:[],n:[[0,-1],[1,0],[0,1],[-1,0]],M:m?1/m:0,I:n?1/n:0,V:[[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2,h/2]],e:H.length,...g})=>(X(s,c,s.a),H.push(s),s),anchor=(t,c)=>(t.p.push(p(c,t.c)),t.p.length-1),joint=(t,A,a,B,b,s,l)=>{if(t>1){A.N.push(B.e);B.N.push(A.e);l=B.a-A.a}J.push({t,A,a,B,b,s,l})},run=(a,f,t,c,e,h,o,r,A,v,w,i,V,b,B,m,g)=>{for(M=[],f=H.length;f--;)for(a=f-1;a>=0;a--)if(c=H[f],e=H[a],c.F=S(c.g,c.m),c.M+e.M&&!c.N.includes(a)){if(h=0,c.t&&e.t)o=s(e.c,c.c),(r=l(o))<c.w+e.w&&(h={d:c.w+e.w-r,n:n(o),c:p(c.c,S(n(o),c.w)),A:c,B:e});else if(c.t||e.t){for(!c.t&&e.t&&([e,c]=[c,e]),i=0,r=4;r--;)A=s(c.c,e.V[r]),v=s(e.V[(r+1)%4],e.V[r]),w=d(A,n(v)),e.n[r]&&d(A,e.n[r])>=0&&w>0&&w<l(v)&&(i=e.V[r],o=e.n[r]);if(!(h=i&&(V=d(o,s(c.c,i)))-c.w<0?{d:-V+c.w,n:S(o,-1),c:p(c.c,S(o,-c.w)),A:c,B:e}:0))for(r=4;r--;)v=s(e.V[r],c.c),l(v)<c.w&&(h={d:c.w-l(v),n:n(v),c:e.V[r],A:c,B:e})}else for(o=9e9,h=-1,t=2;t--;)for(t||([c,e]=[e,c]),r=4;r--;){for(A=0,v=0,i=4;i--;)(w=d(s(e.V[i],c.V[r]),S(c.n[r],-1)))>A&&(A=w,v={v:e.V[i],d:w});v||(h=0),h&&v.d<o&&(h={d:o=v.d,n:c.n[r],c:v.v,A:c,B:e})}h&&M.push(h)}for(a=R;a--;){for(f of M)c=f.A,e=f.B,h=s(p(e.v,x(e,i=s(f.c,e.c))),p(c.v,x(c,V=s(f.c,c.c)))),o=C(V,f.n),r=C(i,f.n),A=f.d*O,v=(-(1+Math.min(c.r,e.r))*d(h,f.n)+A)/(c.M+e.M+o*o*c.I+r*r*e.I),I(c,e,v,f.n,o,r),w=S(s(h,S(f.n,d(h,f.n))),-1),l(w)>0&&(b=C(V,w=n(w)),B=C(i,w),m=Math.min(c.f,e.f),g=-d(h,w)/(c.M+e.M+b*b*c.I+B*B*e.I),Math.abs(g)>Math.abs(v)*m&&(g=Math.sign(g)*Math.abs(v)*m),I(c,e,g,w,b,B));for(t of J)c=t.A,e=t.B,h=c.p[t.a],o=e.p[t.b],v=s(h,c.c),w=s(o,e.c),A=s(o,h),i=(r=l(A))>0?n(A):[1,0],V=C(v,i),b=C(w,i),(B=c.M+e.M+V*V*c.I+b*b*e.I+E)&&(t.t?t.t<2?I(c,e,t.s*Math.max(0,t.l-r)/1e4,i,V,b):(I(c,e,(-d(s(p(e.v,x(e,w)),p(c.v,x(c,v))),i)+-O*r)/B,i,V,b),t.t>2&&(m=e.a-c.a-t.l,(g=c.I+e.I)&&I(c,e,(-(e.A-c.A)+-O*m)/g,0,1,1,0)),r>0&&(B=c.M+e.M,X(c,S(A,c.M/B),0),X(e,S(A,-e.M/B),0))):(I(c,e,-t.s*(r-t.l)/1e3/B,i,V,b),I(c,e,-t.s*(r-t.l)/1e3/B,i,V,b)))}for(f of H)f.M&&(f.v=p(f.v,S(f.F,f.M<0?-f.M:f.M)),f.F=[0,0],f.A+=f.T*f.I,f.a+=f.A,X(f,f.v,f.A),f.v=S(f.v,.99),Math.abs(l(f.v))<1e-4&&(f.v=[0,0]),f.A*=.99,Math.abs(f.A)<1e-4&&(f.A=0),f.T=0)}})()
 
 // ==== Renderer (customizable) ====
 
@@ -51,33 +51,29 @@ draw = (e, r) => {
   for(e of H){
     
     c.save(),
-    c.beginPath(),
+    c.beginPath()
     
     // circle
-    e.t
-    ?(
+    if(e.t === CIRCLE){
       c.fillStyle=e.d||"#bbb",
       c.translate(e.c[0],e.c[1]),
       c.rotate(e.a),
       c.arc(0,0,e.w,0,7),
-      c.lineTo(0,0),
-      c.closePath(),
-      c.fill(),
-      c.stroke()
-    )
+      c.lineTo(0,0)
+    }
     
     // rectangle
-    :(
+    else {
       c.fillStyle=e.d||"#bbb",
       c.moveTo(e.V[0][0],e.V[0][1]),
       c.lineTo(e.V[1][0],e.V[1][1]),
       c.lineTo(e.V[2][0],e.V[2][1]),
-      c.lineTo(e.V[3][0],e.V[3][1]),
-      c.closePath(),
-      c.fill(),
-      c.stroke()
-    ),
+      c.lineTo(e.V[3][0],e.V[3][1])
+    }
     
+    c.closePath(),
+    c.fill(),
+    c.stroke()
     c.restore();
   
     // anchors
@@ -105,14 +101,16 @@ draw = (e, r) => {
   c.font="bold 15px arial";
   c.fillText("STRESS TEST", 100, 65);
   c.fillText("CUSTOM ANGLE, VELOCITY,", 300, 65);
-  c.fillText("GRAVITY, COLOR", 340, 90);
+  c.fillText("FRICTION, GRAVITY, COLOR...", 300, 90);
   c.fillText("SPRING JOINT", 600, 65);
+  c.fillText("MULTI JOINTS", 860, 65);
   c.fillText("REPULSIVE JOINT", 70, 345);
   c.fillText("FIXED JOINT", 350, 345);
   c.fillText("HINGE JOINT", 600, 345);
+  c.fillText("JOINT LOOP", 860, 345);
 },
 
-// ==== User code ====
+// ============= User code ================
 
 // Canvas setup
 c = a.getContext`2d`,
@@ -120,14 +118,14 @@ c = a.getContext`2d`,
 // Demo
 
 // Grid
-shape(RECTANGLE, [400, 20], 0, 780, 20);
-shape(RECTANGLE, [400, 300], 0, 780, 20);
-shape(RECTANGLE, [400, 580], 0, 780, 20);
+shape(RECTANGLE, [540, 20], 0, 780+280, 20);
+shape(RECTANGLE, [540, 300], 0, 780+280, 20);
+shape(RECTANGLE, [540, 580], 0, 780+280, 20);
 shape(RECTANGLE, [20, 300], 0, 20, 580);
 shape(RECTANGLE, [280, 300], 0, 20, 580);
 shape(RECTANGLE, [540, 300], 0, 20, 580);
-shape(RECTANGLE, [780, 300], 0, 20, 580);
-
+shape(RECTANGLE, [770, 300], 0, 20, 580);
+shape(RECTANGLE, [1060, 300], 0, 20, 580);
 
 // Stress test
 for(i=35;i--;){
@@ -146,39 +144,80 @@ r7 = shape(1, [470, 100], 1, 10, 10, {g: [-.1,0], d: "#fde"});
 
 // Spring joint
 r1 = shape(RECTANGLE, [630, 100], 0, 90, 50);
-a1 = anchor([20,15], r1);
+a1 = anchor(r1, [20,15], r1);
 c1 = shape(CIRCLE, [590, 250], 1, 30, 30);
-a2 = anchor([0,-10], c1);
-j2 = joint(SPRING, r1, a1, c1, a2, .2, 80);
-
+a2 = anchor(c1, [0,-10], c1);
+joint(SPRING, r1, a1, c1, a2, .2, 80);
 
 // Repulsive joint
 for(i=10;i--;){
   shape(CIRCLE, [180+Math.random() * 30, 520+Math.random() * 20], Math.random()*5+5, 10, 10, .5, .5);
 }
 r1 = shape(RECTANGLE, [100, 520], 0, 90, 50);
-a1 = anchor([0,-25], r1);
+a1 = anchor(r1, [0,-25]);
 c1 = shape(CIRCLE, [120, 480], 1, 30);
-a2 = anchor([-20,0], c1);
-j1 = joint(REPULSIVE, r1, a1, c1, a2, .2, 200);
+a2 = anchor(c1, [-20,0]);
+joint(REPULSIVE, r1, a1, c1, a2, .2, 200);
 
 // Fixed joint
 for(i=20;i--;){
   shape(CIRCLE, [300+Math.random() * (780/3 - 50), 520+Math.random() * 20], Math.random()*5+5, 10,10, .5, .5);
 }
 r1 = shape(RECTANGLE, [400, 420], 10, 90, 50);
-a1 = anchor([0,-15], r1);
+a1 = anchor(r1, [0,-15]);
 c1 = shape(CIRCLE, [400, 400], 10, 30);
-a2 = anchor([0,20], c1);
-j4 = joint(FIXED, r1, a1, c1, a2);
-
+a2 = anchor(c1, [0,20]);
+joint(FIXED, r1, a1, c1, a2);
 
 // Hinge joint
 r1 = shape(RECTANGLE, [630, 460], 0, 90, 50);
-a1 = anchor([20,15], r1);
+a1 = anchor(r1, [20,15]);
 c1 = shape(CIRCLE, [665, 465], 100, 30, 30);
-a2 = anchor([-20,10], c1);
-j4 = joint(HINGE, r1, a1, c1, a2);
+a2 = anchor(c1, [-20,10]);
+joint(HINGE, r1, a1, c1, a2);
+
+
+// Hinge + fixed
+s1p = shape(RECTANGLE, [660+260, 80+30], 0, 200, 30);
+a1 = anchor(s1p, [0,15]);
+s2 = shape(CIRCLE, [650+260, 90+40], 10, 30);
+s3 = shape(RECTANGLE, [650+260, 110+40], 10, 50, 50);
+s4 = shape(CIRCLE, [650+260, 150+40], 1, 20);
+a2a = anchor(s2, [20,-20]);
+a2b = anchor(s2, [0,20]);
+a3a = anchor(s3, [20,-20]);
+a3b = anchor(s3, [0,20]);
+a4a = anchor(s4, [0,-20]);
+j1 = joint(HINGE, s1p, a1, s2, a2a);
+j2 = joint(FIXED, s2, a2b, s3, a3a);
+j2 = joint(FIXED, s3, a3b, s4, a4a);
+
+// Multi hinge
+s1b = shape(RECTANGLE, [410+510, 70+300], 0, 200, 30);
+a1a = anchor(s1b, [-60,10]);
+a1b = anchor(s1b, [70,10]);
+s2 = shape(CIRCLE, [360+510, 90+300], 10, 30);
+a2a = anchor(s2, [0,-20]);
+a2b = anchor(s2, [-20,20]);
+s3 = shape(RECTANGLE, [450+510, 110+300], 10, 30, 60);
+a3a = anchor(s3, [10,-20]);
+a3b = anchor(s3, [-10,20]);
+j1 = joint(HINGE, s1b, a1a, s2, a2a);
+j2 = joint(HINGE, s1b, a1b, s3, a3a);
+s6 = shape(CIRCLE, [400+510, 200+300], 10, 50);
+s4 = shape(RECTANGLE, [370+510, 150+300], 10, 30, 100);
+a4a = anchor(s4, [0,-40]);
+a4b = anchor(s4, [0,40]);
+s5 = shape(RECTANGLE, [470+510, 150+300], 10, 30, 100);
+a5a = anchor(s5, [0,-40]);
+a5b = anchor(s5, [0,40]);
+j3 = joint(HINGE, s2, a2b, s4, a4a);
+j4 = joint(HINGE, s3, a3b, s5, a5a);
+a6a = anchor(s6, [-40,-0]);
+a6b = anchor(s6, [40,0]);
+j5 = joint(HINGE, s6, a6a, s4, a4b);
+j6 = joint(HINGE, s6, a6b, s5, a5b);
+
 
 // Main loop
 setInterval(() => {

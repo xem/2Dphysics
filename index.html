@@ -1,5 +1,5 @@
 <!doctype html>
-<canvas id=a width=800 height=600 style="background:#eee"></canvas>
+<canvas id=a width=1100 height=600 style="background:#eee"></canvas>
 <script>
 
 // ==== 2Dphysics ====
@@ -9,9 +9,8 @@
 
 // - shape(type, center, mass, width, height, {f: friction, r:restitution, a: angle, v: velocity, a: angularVelocity, g: gravity, d: customData)
 // - anchor(shape, position)
-// - joint(type, shape1, anchor1, shape2, anchor2, strength, length): joint constructor
+// - joint(type, shape1, anchor1, shape2, anchor2, strength, length)
 // - run(): run simulation
-// - draw(): renderer (customizable)
 
 //  Globals
 // ---------
@@ -23,9 +22,9 @@ E = .01;        // Fixed joints elasticity
 R = 20;         // Resolutions per frame
 
 // Arrays
-H = [];    // shapes (circles, rectangles)
-J = [];    // joints (spring, repulsive, fixed, hinge)
-M = [];    // manifolds
+H = [];         // shapes (circles, rectangles)
+J = [];         // joints (spring, repulsive, fixed, hinge)
+M = [];         // manifolds
 
 // Shapes types
 RECTANGLE = 0;
@@ -120,12 +119,12 @@ shape = (t, c, m = 1, w = 9, h = 9, o,
     w,
     h,
     c: [0,0],
-    f: .5,      // friction
-    r: .5,      // restitution
-    a: 0,      // angle
-    v: [0, 0], // velocity
-    A: 0,      // angular velocity
-    g: G,      // gravity
+    f: .5,              // friction
+    r: .5,              // restitution
+    a: 0,               // angle
+    v: [0, 0],          // velocity
+    A: 0,               // angular velocity
+    g: G,               // gravity
     F: [0, 0],          // forceAccumulator
     T: 0,               // torqueAccumulator
     p: [],              // anchorPoints
@@ -141,29 +140,28 @@ shape = (t, c, m = 1, w = 9, h = 9, o,
     
     I: i ? 1 / i : 0,   // invInertia
     
-    V: t ? [] : [             // vertices (rectangles only)
+    V: t ? [] : [       // vertices (rectangles only)
       [-w / 2, -h / 2],
       [w / 2, -h / 2],
       [w / 2, h / 2],
       [-w / 2, h / 2]
     ],
     
-    e: H.length,    // index in shapes list
-    ...o,        // custom options
+    e: H.length,        // index in shapes list
+    ...o,               // custom options
   }
 ) => (
-  //console.log(s),
   X(s, c, s.a),         // rotate / translate the shape
-  H.push(s),       // add shape in shapes list
+  H.push(s),            // add shape in shapes list
   s                     // return shape
 ),
 
 // Add an anchor to a shape
-// params: anchor (local coordinates), shape
-anchor = (anchor, shape) => (
+// params: shape, position (local coordinates)
+anchor = (shape, position) => (
   
   // add anchor in the point's anchors list (converted in world coordinates)
-  shape.p.push(p(anchor, shape.c)),
+  shape.p.push(p(position, shape.c)),
   
   // return anchor index
   shape.p.length - 1
@@ -555,33 +553,29 @@ draw = (e, r) => {
   for(e of H){
     
     c.save(),
-    c.beginPath(),
+    c.beginPath();
     
     // circle
-    e.t
-    ?(
+    if(e.t === CIRCLE){
       c.fillStyle=e.d||"#bbb",
       c.translate(e.c[0],e.c[1]),
       c.rotate(e.a),
       c.arc(0,0,e.w,0,7),
-      c.lineTo(0,0),
-      c.closePath(),
-      c.fill(),
-      c.stroke()
-    )
+      c.lineTo(0,0)
+    }
     
     // rectangle
-    :(
+    else {
       c.fillStyle=e.d||"#bbb",
       c.moveTo(e.V[0][0],e.V[0][1]),
       c.lineTo(e.V[1][0],e.V[1][1]),
       c.lineTo(e.V[2][0],e.V[2][1]),
-      c.lineTo(e.V[3][0],e.V[3][1]),
-      c.closePath(),
-      c.fill(),
-      c.stroke()
-    ),
+      c.lineTo(e.V[3][0],e.V[3][1])
+    }
     
+    c.closePath(),
+    c.fill(),
+    c.stroke()
     c.restore();
   
     // anchors
@@ -611,9 +605,11 @@ draw = (e, r) => {
   c.fillText("CUSTOM ANGLE, VELOCITY,", 300, 65);
   c.fillText("FRICTION, GRAVITY, COLOR...", 300, 90);
   c.fillText("SPRING JOINT", 600, 65);
+  c.fillText("MULTI JOINTS", 860, 65);
   c.fillText("REPULSIVE JOINT", 70, 345);
   c.fillText("FIXED JOINT", 350, 345);
   c.fillText("HINGE JOINT", 600, 345);
+  c.fillText("JOINT LOOP", 860, 345);
 },
 
 // ============= User code ================
@@ -624,14 +620,14 @@ c = a.getContext`2d`,
 // Demo
 
 // Grid
-shape(RECTANGLE, [400, 20], 0, 780, 20);
-shape(RECTANGLE, [400, 300], 0, 780, 20);
-shape(RECTANGLE, [400, 580], 0, 780, 20);
+shape(RECTANGLE, [540, 20], 0, 780+280, 20);
+shape(RECTANGLE, [540, 300], 0, 780+280, 20);
+shape(RECTANGLE, [540, 580], 0, 780+280, 20);
 shape(RECTANGLE, [20, 300], 0, 20, 580);
 shape(RECTANGLE, [280, 300], 0, 20, 580);
 shape(RECTANGLE, [540, 300], 0, 20, 580);
-shape(RECTANGLE, [780, 300], 0, 20, 580);
-
+shape(RECTANGLE, [770, 300], 0, 20, 580);
+shape(RECTANGLE, [1060, 300], 0, 20, 580);
 
 // Stress test
 for(i=35;i--;){
@@ -650,39 +646,80 @@ r7 = shape(1, [470, 100], 1, 10, 10, {g: [-.1,0], d: "#fde"});
 
 // Spring joint
 r1 = shape(RECTANGLE, [630, 100], 0, 90, 50);
-a1 = anchor([20,15], r1);
+a1 = anchor(r1, [20,15], r1);
 c1 = shape(CIRCLE, [590, 250], 1, 30, 30);
-a2 = anchor([0,-10], c1);
-j2 = joint(SPRING, r1, a1, c1, a2, .2, 80);
-
+a2 = anchor(c1, [0,-10], c1);
+joint(SPRING, r1, a1, c1, a2, .2, 80);
 
 // Repulsive joint
 for(i=10;i--;){
   shape(CIRCLE, [180+Math.random() * 30, 520+Math.random() * 20], Math.random()*5+5, 10, 10, .5, .5);
 }
 r1 = shape(RECTANGLE, [100, 520], 0, 90, 50);
-a1 = anchor([0,-25], r1);
+a1 = anchor(r1, [0,-25]);
 c1 = shape(CIRCLE, [120, 480], 1, 30);
-a2 = anchor([-20,0], c1);
-j1 = joint(REPULSIVE, r1, a1, c1, a2, .2, 200);
+a2 = anchor(c1, [-20,0]);
+joint(REPULSIVE, r1, a1, c1, a2, .2, 200);
 
 // Fixed joint
 for(i=20;i--;){
   shape(CIRCLE, [300+Math.random() * (780/3 - 50), 520+Math.random() * 20], Math.random()*5+5, 10,10, .5, .5);
 }
 r1 = shape(RECTANGLE, [400, 420], 10, 90, 50);
-a1 = anchor([0,-15], r1);
+a1 = anchor(r1, [0,-15]);
 c1 = shape(CIRCLE, [400, 400], 10, 30);
-a2 = anchor([0,20], c1);
-j4 = joint(FIXED, r1, a1, c1, a2);
-
+a2 = anchor(c1, [0,20]);
+joint(FIXED, r1, a1, c1, a2);
 
 // Hinge joint
 r1 = shape(RECTANGLE, [630, 460], 0, 90, 50);
-a1 = anchor([20,15], r1);
+a1 = anchor(r1, [20,15]);
 c1 = shape(CIRCLE, [665, 465], 100, 30, 30);
-a2 = anchor([-20,10], c1);
-j4 = joint(HINGE, r1, a1, c1, a2);
+a2 = anchor(c1, [-20,10]);
+joint(HINGE, r1, a1, c1, a2);
+
+
+// Hinge + fixed
+s1p = shape(RECTANGLE, [660+260, 80+30], 0, 200, 30);
+a1 = anchor(s1p, [0,15]);
+s2 = shape(CIRCLE, [650+260, 90+40], 10, 30);
+s3 = shape(RECTANGLE, [650+260, 110+40], 10, 50, 50);
+s4 = shape(CIRCLE, [650+260, 150+40], 1, 20);
+a2a = anchor(s2, [20,-20]);
+a2b = anchor(s2, [0,20]);
+a3a = anchor(s3, [20,-20]);
+a3b = anchor(s3, [0,20]);
+a4a = anchor(s4, [0,-20]);
+j1 = joint(HINGE, s1p, a1, s2, a2a);
+j2 = joint(FIXED, s2, a2b, s3, a3a);
+j2 = joint(FIXED, s3, a3b, s4, a4a);
+
+// Multi hinge
+s1b = shape(RECTANGLE, [410+510, 70+300], 0, 200, 30);
+a1a = anchor(s1b, [-60,10]);
+a1b = anchor(s1b, [70,10]);
+s2 = shape(CIRCLE, [360+510, 90+300], 10, 30);
+a2a = anchor(s2, [0,-20]);
+a2b = anchor(s2, [-20,20]);
+s3 = shape(RECTANGLE, [450+510, 110+300], 10, 30, 60);
+a3a = anchor(s3, [10,-20]);
+a3b = anchor(s3, [-10,20]);
+j1 = joint(HINGE, s1b, a1a, s2, a2a);
+j2 = joint(HINGE, s1b, a1b, s3, a3a);
+s6 = shape(CIRCLE, [400+510, 200+300], 10, 50);
+s4 = shape(RECTANGLE, [370+510, 150+300], 10, 30, 100);
+a4a = anchor(s4, [0,-40]);
+a4b = anchor(s4, [0,40]);
+s5 = shape(RECTANGLE, [470+510, 150+300], 10, 30, 100);
+a5a = anchor(s5, [0,-40]);
+a5b = anchor(s5, [0,40]);
+j3 = joint(HINGE, s2, a2b, s4, a4a);
+j4 = joint(HINGE, s3, a3b, s5, a5a);
+a6a = anchor(s6, [-40,-0]);
+a6b = anchor(s6, [40,0]);
+j5 = joint(HINGE, s6, a6a, s4, a4b);
+j6 = joint(HINGE, s6, a6b, s5, a5b);
+
 
 // Main loop
 setInterval(() => {
