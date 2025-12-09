@@ -3,13 +3,13 @@
 <body>
 
 <div>
-<h1>2Dphysics</h1>
+<h1>2Dphysics <sup>v.1.0</sup></h1>
 <br>
 <h3>The World's smallest 2D physics engine in JavaScript including springs and joints</h3>
 <br>
 <div class=button onclick="window.open('https://raw.githubusercontent.com/xem/2Dphysics/refs/heads/gh-pages/commented.html')"><b>Commented source</b><br>(20kb)</div>
-<div class=button onclick="window.open('https://raw.githubusercontent.com/xem/2Dphysics/refs/heads/gh-pages/min.js')"><b>Minified</b><br>(1.4kb zipped)</div>
-<div class=button onclick="window.open('https://raw.githubusercontent.com/xem/2Dphysics/refs/heads/gh-pages/micro.js')"><b>Micro</b><br>(no joints, 1.1kb zipped)</div>
+<div class=button onclick="window.open('https://raw.githubusercontent.com/xem/2Dphysics/refs/heads/gh-pages/min.js')"><b>Minified</b><br>(1.5kb zipped)</div>
+<div class=button onclick="window.open('https://raw.githubusercontent.com/xem/2Dphysics/refs/heads/gh-pages/micro.js')"><b>Micro</b><br>(no joints, 1.2kb zipped)</div>
 
 <br>
 <br>
@@ -26,7 +26,7 @@
 <table>
 <tr>
 <td>
-<b>Globals</b>
+<b>GLOBALS</b>
 <ul>
 <li><b>G</b> = [0,.1] (Gravity)
 <li><b>O</b> = .4 (Shapes overlap correction)
@@ -38,12 +38,12 @@
 <li><b>M</b> = []  (manifolds list)
 </ul>
 <td>
-<b>Shape types</b>
+<b>SHAPES TYPES</b>
 <ul>
 <li><b>RECTANGLE</b> = 0;
 <li><b>CIRCLE</b> = 1;
 </ul>
-<b>Joint types</b>
+<b>JOINTS TYPES</b>
 <ul>
 <li><b>SPRING</b> = 0;
 <li><b>REPULSIVE</b> = 1;
@@ -56,7 +56,7 @@
 <td colspan=2>
 <b>Functions</b>
 <ul>
-<li><b>shape</b> (type, center, mass, width, height, options)
+<li><b>shape</b> (type, center, mass, width, height, options) // use mass = 0 for fixed shapes
 <li><b>anchor</b> (shape, position)
 <li><b>joint</b> (type, shape1, anchor1, shape2, anchor2, strength, length)
 <li><b>transform</b> (shape, positionOffset, angleOffset)
@@ -71,8 +71,7 @@
 <br>
 <br>
 <h2>Demo</h2>
-<br>
-<br>The "micro" version can only do the first two blocks.
+<br>The "micro" version can only do the first two blocks below.
 <br>
 <br>
 
@@ -353,7 +352,7 @@ table {border-collapse: collapse }
 table b { text-align: left; width: 200px; display: block; }
 ul b { text-align: left; width: auto; display: inline; }
 td { width: 320px; vertical-align: top; border: 4px solid #ccc; padding: 10px 10px 0; background: #f8f8f8; }
-
+sup { font-size: 18px; } 
 /* PrismJS 1.16.0
 https://prismjs.com/download.html#themes=prism-okaidia&languages=markup+css+clike+javascript+css-extras */
 /**
