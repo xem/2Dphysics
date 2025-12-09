@@ -1,5 +1,5 @@
 <!doctype html>
-<canvas id=a width=1100 height=600 style="background:#eee"></canvas>
+<canvas id=a width=800 height=900 style="background:#eee;width:400px;height:450px;"></canvas>
 <script>
 
 // ==== 2Dphysics ====
@@ -62,27 +62,6 @@ x=(shape,penetration)=>(        // scalar cross (shape x penetration)
   ]
 ),
 
-// Transform a shape
-// params: shape, offset, angle
-X = (shape, offset, angle, t = 4) => {
-  
-  // add offset to the shape's center
-  shape.c = p(shape.c, offset);
-  
-  // add offset / angle to the shape's vertices (rectangle only)
-  if(!shape.t){
-    for(; t--;){
-      shape.n[t] = r(shape.n[t], [0,0], angle);
-      shape.V[t] = r(p(shape.V[t], offset), shape.c, angle);
-    }
-  }
-  
-  // add offset to the shape's anchor points
-  for(t in shape.p){
-    shape.p[t] = r(p(shape.p[t], offset), shape.c, angle);
-  }
-},
-
 // Apply normal impulse (linear + angular)
 // params: shapeA, shapeB, force, normal, aCrossN, bCrossN, doLinear
 I = (a, b, force, n, an, bn, doLinear = 1, t) => {
@@ -95,8 +74,8 @@ I = (a, b, force, n, an, bn, doLinear = 1, t) => {
   }
   
   // angular
-  a.A -= an * force * a.I;
-  b.A += bn * force * b.I;
+  if(a.R) a.A -= an * force * a.I;
+  if(b.R) b.A += bn * force * b.I;
 };
 
 // Shapes
@@ -125,6 +104,7 @@ shape = (t, c, m = 1, w = 9, h = 9, o,
     g: G,               // gravity
     F: [0, 0],          // forceAccumulator
     T: 0,               // torqueAccumulator
+    R: 1,               // rotations enabled
     p: [],              // anchorPoints
     N: [],              // noCollisions
     n: [                // normals (rectangles only)
@@ -149,7 +129,7 @@ shape = (t, c, m = 1, w = 9, h = 9, o,
     ...o,               // custom options
   }
 ) => (
-  X(s, c, s.a),         // rotate / translate the shape
+  transform(s, c, s.a), // rotate / translate the shape
   H.push(s),            // add shape in shapes list
   s                     // return shape
 ),
@@ -192,6 +172,27 @@ joint = (t, A, a, B, b, s, l) => {
     s,
     l,
   });
+},
+
+// Transform a shape
+// params: shape, offset, angle
+transform = (shape, offset, angle, t = 4) => {
+  
+  // add offset to the shape's center
+  shape.c = p(shape.c, offset);
+  
+  // add offset / angle to the shape's vertices and normals (rectangle only)
+  if(!shape.t){
+    for(; t--;){
+      shape.n[t] = r(shape.n[t], [0,0], angle);
+      shape.V[t] = r(p(shape.V[t], offset), shape.c, angle);
+    }
+  }
+  
+  // add offset to the shape's anchor points
+  for(t in shape.p){
+    shape.p[t] = r(p(shape.p[t], offset), shape.c, angle);
+  }
 },
 
 // Run the simulation (1 frame)
@@ -491,8 +492,8 @@ run = (
           // position correction (keep anchors superposed)
           if(t3 > 0){
             t10 = body1.M + body2.M;
-            X(body1, S(t4, (body1.M / t10)), 0);
-            X(body2, S(t4, -(body2.M / t10)), 0);
+            transform(body1, S(t4, (body1.M / t10)), 0);
+            transform(body2, S(t4, -(body2.M / t10)), 0);
           }
         }
       }
@@ -518,7 +519,7 @@ run = (
       j.a += j.A;
       
       // rotate / translate shape
-      X(j, j.v, j.A);
+      transform(j, j.v, j.A);
 
       // damp velocity
       j.v = S(j.v, .99);
@@ -603,11 +604,12 @@ draw = (e, r) => {
   c.fillText("CUSTOM ANGLE, VELOCITY,", 300, 65);
   c.fillText("FRICTION, GRAVITY, COLOR...", 300, 90);
   c.fillText("SPRING JOINT", 600, 65);
-  c.fillText("MULTI JOINTS", 860, 65);
   c.fillText("REPULSIVE JOINT", 70, 345);
   c.fillText("FIXED JOINT", 350, 345);
   c.fillText("HINGE JOINT", 600, 345);
-  c.fillText("JOINT LOOP", 860, 345);
+  c.fillText("MULTI-JOINT LOOP", 70, 630);
+  c.fillText("MOVABLE KINEMATIC SHAPE", 305, 630);
+  c.fillText("SHAPE WITH NO ROTATION", 560, 630);
 },
 
 // ============= User code ================
@@ -618,20 +620,21 @@ c = a.getContext`2d`,
 // Demo
 
 // Grid
-shape(RECTANGLE, [540, 20], 0, 780+280, 20);
-shape(RECTANGLE, [540, 300], 0, 780+280, 20);
-shape(RECTANGLE, [540, 580], 0, 780+280, 20);
-shape(RECTANGLE, [20, 300], 0, 20, 580);
-shape(RECTANGLE, [280, 300], 0, 20, 580);
-shape(RECTANGLE, [540, 300], 0, 20, 580);
-shape(RECTANGLE, [770, 300], 0, 20, 580);
-shape(RECTANGLE, [1060, 300], 0, 20, 580);
+shape(RECTANGLE, [400, 20], 0, 780, 20);
+shape(RECTANGLE, [400, 300], 0, 780, 20);
+shape(RECTANGLE, [400, 580], 0, 780, 20);
+shape(RECTANGLE, [400, 880], 0, 780, 20);
+shape(RECTANGLE, [20, 450], 0, 20, 880);
+shape(RECTANGLE, [280, 450], 0, 20, 880);
+shape(RECTANGLE, [540, 450], 0, 20, 880);
+shape(RECTANGLE, [780, 450], 0, 20, 880);
 
 // Stress test
 for(i=35;i--;){
   shape(CIRCLE, [65 - i/2 + (i % 8) * 25, 55+ (i / 8) * 40], 1, 10);
   shape(RECTANGLE, [50 + i/2 + (i % 8) * 25, 35+ (i / 8) * 40], 1, 20, 15);
 }
+
 
 // Extra params
 r1 = shape(1, [370, 80], 1, 30, 30, {f: .9, r: .1, a:.6, v:[2,-1], A:-.3, g:[0,.1], d:"#dcb"});
@@ -677,51 +680,54 @@ a2 = anchor(c1, [-20,10]);
 joint(HINGE, r1, a1, c1, a2);
 
 
-// Hinge + fixed
-s1p = shape(RECTANGLE, [660+260, 80+30], 0, 200, 30);
-a1 = anchor(s1p, [0,15]);
-s2 = shape(CIRCLE, [650+260, 90+40], 10, 30);
-s3 = shape(RECTANGLE, [650+260, 110+40], 10, 50, 50);
-s4 = shape(CIRCLE, [650+260, 150+40], 1, 20);
-a2a = anchor(s2, [20,-20]);
-a2b = anchor(s2, [0,20]);
-a3a = anchor(s3, [20,-20]);
-a3b = anchor(s3, [0,20]);
-a4a = anchor(s4, [0,-20]);
-j1 = joint(HINGE, s1p, a1, s2, a2a);
-j2 = joint(FIXED, s2, a2b, s3, a3a);
-j2 = joint(FIXED, s3, a3b, s4, a4a);
-
-// Multi hinge
-s1b = shape(RECTANGLE, [410+510, 70+300], 0, 200, 30);
+// Loop
+s1b = shape(RECTANGLE, [410+510-780, 70+300+300], 0, 200, 30);
+s2 = shape(CIRCLE, [360+510-780, 90+300+300], 10, 30);
+s3 = shape(RECTANGLE, [450+510-780, 110+300+300], 10, 30, 60);
+s4 = shape(RECTANGLE, [370+510-780, 150+300+300], 10, 30, 100);
+s5 = shape(RECTANGLE, [470+510-780, 150+300+300], 10, 30, 100);
+s6 = shape(CIRCLE, [400+510-780-20, 200+300+300], 10, 20);
+s7 = shape(CIRCLE, [400+510-780+20, 200+300+300], 10, 20);
 a1a = anchor(s1b, [-60,10]);
 a1b = anchor(s1b, [70,10]);
-s2 = shape(CIRCLE, [360+510, 90+300], 10, 30);
 a2a = anchor(s2, [0,-20]);
 a2b = anchor(s2, [-20,20]);
-s3 = shape(RECTANGLE, [450+510, 110+300], 10, 30, 60);
 a3a = anchor(s3, [10,-20]);
 a3b = anchor(s3, [-10,20]);
 j1 = joint(HINGE, s1b, a1a, s2, a2a);
 j2 = joint(HINGE, s1b, a1b, s3, a3a);
-s6 = shape(CIRCLE, [400+510, 200+300], 10, 50);
-s4 = shape(RECTANGLE, [370+510, 150+300], 10, 30, 100);
 a4a = anchor(s4, [0,-40]);
 a4b = anchor(s4, [0,40]);
-s5 = shape(RECTANGLE, [470+510, 150+300], 10, 30, 100);
 a5a = anchor(s5, [0,-40]);
 a5b = anchor(s5, [0,40]);
 j3 = joint(HINGE, s2, a2b, s4, a4a);
 j4 = joint(HINGE, s3, a3b, s5, a5a);
-a6a = anchor(s6, [-40,-0]);
-a6b = anchor(s6, [40,0]);
+a6a = anchor(s6, [-15,0]);
+a6b = anchor(s6, [15,0]);
+a7a = anchor(s7, [-15,0]);
+a7b = anchor(s7, [15,0]);
 j5 = joint(HINGE, s6, a6a, s4, a4b);
-j6 = joint(HINGE, s6, a6b, s5, a5b);
+j6 = joint(FIXED, s6, a6b, s7, a7a);
+j7 = joint(HINGE, s7, a7b, s5, a5b);
 
+// Kinematic
+
+for(i=35;i--;){
+  shape(i%2, [345 - i/2 + (i % 8) * 25, 655+ (i / 8) * 40], 1, i%2?10:20,20);
+}
+r9 = shape(RECTANGLE, [350, 800], 0, 50, 10, {d: "#88F"});
+
+// No rotations
+s1 = shape(RECTANGLE, [680, 800], 0, 200, 20, {a: -.6, f: 1, r: .5});
+s2 = shape(RECTANGLE, [730, 700], 10, 30, 50, {d: "#F8F", f: .1, r: .5, R: 0});
+s2 = shape(CIRCLE, [680, 700], 10, 30, 50, {d: "#F88", f: .1, r: .5, R: 0});
 
 // Main loop
+time = 0;
 setInterval(() => {
+  time++;
   run();
+  transform(r9, [Math.sin(time/70) * .8, 0], -0.01);
   draw();
 }, 16);
 </script>
