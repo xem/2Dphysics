@@ -3,15 +3,6 @@
 <script>
 // ==== 2Dphysics MINI ====
 
-//  API
-// -----
-
-// - shape(type, center, mass, width, height, {f: friction, r:restitution, a: angle, v: velocity, a: angularVelocity, g: gravity, d: customData)
-// - anchor(shape, position)
-// - joint(type, shape1, anchor1, shape2, anchor2, strength, length)
-// - transform(shape, positionOffset, angleOffset)
-// - run(): run simulation
-
 //  Globals
 // ---------
 
@@ -146,9 +137,9 @@ r7 = shape(1, [470, 100], 1, 10, 10, {g: [-.1,0], d: "#fde"});
 
 // Spring joint
 r1 = shape(RECTANGLE, [630, 100], 0, 90, 50);
-a1 = anchor(r1, [20,15], r1);
+a1 = anchor(r1, [20,15]);
 c1 = shape(CIRCLE, [590, 250], 1, 30, 30);
-a2 = anchor(c1, [0,-10], c1);
+a2 = anchor(c1, [0,-10]);
 joint(SPRING, r1, a1, c1, a2, .2, 80);
 
 // Repulsive joint
