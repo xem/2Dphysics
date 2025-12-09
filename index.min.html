@@ -1,9 +1,7 @@
 <!doctype html>
 <canvas id=a width=800 height=900 style="background:#eee;width:400px;height:450px;"></canvas>
 <script>
-
-
-// ==== 2Dphysics ====
+// ==== 2Dphysics MINI ====
 
 //  API
 // -----
@@ -11,6 +9,7 @@
 // - shape(type, center, mass, width, height, {f: friction, r:restitution, a: angle, v: velocity, a: angularVelocity, g: gravity, d: customData)
 // - anchor(shape, position)
 // - joint(type, shape1, anchor1, shape2, anchor2, strength, length)
+// - transform(shape, positionOffset, angleOffset)
 // - run(): run simulation
 
 //  Globals
@@ -36,9 +35,11 @@ SPRING = 0;
 REPULSIVE = 1;
 HINGE = 2;
 FIXED = 3;
+</script>
 
-((n=x=>S(x,1/l(x)),l=x=>d(x,x)**.5,d=(x,y)=>x[0]*y[0]+x[1]*y[1],p=(x,y)=>[x[0]+y[0],x[1]+y[1]],s=(x,y)=>p(x,S(y,-1)),S=(x,y)=>[x[0]*y,x[1]*y],C=(x,y)=>x[0]*y[1]-x[1]*y[0],r=(x,y,l)=>[(x[0]-y[0])*Math.cos(l)-(x[1]-y[1])*Math.sin(l)+y[0],(x[0]-y[0])*Math.sin(l)+(x[1]-y[1])*Math.cos(l)+y[1]],x=(x,y)=>[-x.A*y[1],x.A*y[0]],I=(c,t,l,e,a,n,r=1,o)=>{r&&(o=S(e,l),c.v=s(c.v,S(o,c.M)),t.v=p(t.v,S(o,t.M))),c.R&&(c.A-=a*l*c.I),t.R&&(t.A+=n*l*t.I)})=>{shape=(t,c,m=1,w=9,h=9,g,n=t?m*w*w/2:m*(w*w+h*h)/12,s={t,m,w,h,c:[0,0],f:.5,r:.5,a:0,v:[0,0],A:0,g:G,F:[0,0],T:0,R:1,p:[],N:[],n:[[0,-1],[1,0],[0,1],[-1,0]],M:m?1/m:0,I:n?1/n:0,V:[[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2,h/2]],e:H.length,...g})=>(transform(s,c,s.a),H.push(s),s),anchor=(t,c)=>(t.p.push(p(c,t.c)),t.p.length-1),joint=(t,A,a,B,b,s,l)=>{if(t>1){A.N.push(B.e);B.N.push(A.e);l=B.a-A.a}J.push({t,A,a,B,b,s,l})},transform=(c,f,n,i=4)=>{if(c.c=p(c.c,f),!c.t)for(;i--;)c.n[i]=r(c.n[i],[0,0],n),c.V[i]=r(p(c.V[i],f),c.c,n);for(i in c.p)c.p[i]=r(p(c.p[i],f),c.c,n)},run=(a,f,t,c,e,h,o,r,A,v,w,i,V,b,B,m,g)=>{for(M=[],f=H.length;f--;)for(a=f-1;a>=0;a--)if(c=H[f],e=H[a],c.F=S(c.g,c.m),c.M+e.M&&!c.N.includes(a)){if(h=0,c.t&&e.t)o=s(e.c,c.c),(r=l(o))<c.w+e.w&&(h={d:c.w+e.w-r,n:n(o),c:p(c.c,S(n(o),c.w)),A:c,B:e});else if(c.t||e.t){for(!c.t&&e.t&&([e,c]=[c,e]),i=0,r=4;r--;)A=s(c.c,e.V[r]),v=s(e.V[(r+1)%4],e.V[r]),w=d(A,n(v)),e.n[r]&&d(A,e.n[r])>=0&&w>0&&w<l(v)&&(i=e.V[r],o=e.n[r]);if(!(h=i&&(V=d(o,s(c.c,i)))-c.w<0?{d:-V+c.w,n:S(o,-1),c:p(c.c,S(o,-c.w)),A:c,B:e}:0))for(r=4;r--;)v=s(e.V[r],c.c),l(v)<c.w&&(h={d:c.w-l(v),n:n(v),c:e.V[r],A:c,B:e})}else for(o=9e9,h=-1,t=2;t--;)for(t||([c,e]=[e,c]),r=4;r--;){for(A=0,v=0,i=4;i--;)(w=d(s(e.V[i],c.V[r]),S(c.n[r],-1)))>A&&(A=w,v={v:e.V[i],d:w});v||(h=0),h&&v.d<o&&(h={d:o=v.d,n:c.n[r],c:v.v,A:c,B:e})}h&&M.push(h)}for(a=R;a--;){for(f of M)c=f.A,e=f.B,h=s(p(e.v,x(e,i=s(f.c,e.c))),p(c.v,x(c,V=s(f.c,c.c)))),o=C(V,f.n),r=C(i,f.n),A=f.d*O,v=(-(1+Math.min(c.r,e.r))*d(h,f.n)+A)/(c.M+e.M+o*o*c.I+r*r*e.I),I(c,e,v,f.n,o,r),w=S(s(h,S(f.n,d(h,f.n))),-1),l(w)>0&&(b=C(V,w=n(w)),B=C(i,w),m=Math.min(c.f,e.f),g=-d(h,w)/(c.M+e.M+b*b*c.I+B*B*e.I),Math.abs(g)>Math.abs(v)*m&&(g=Math.sign(g)*Math.abs(v)*m),I(c,e,g,w,b,B));for(t of J)c=t.A,e=t.B,h=c.p[t.a],o=e.p[t.b],v=s(h,c.c),w=s(o,e.c),A=s(o,h),i=(r=l(A))>0?n(A):[1,0],V=C(v,i),b=C(w,i),(B=c.M+e.M+V*V*c.I+b*b*e.I+E)&&(t.t?t.t<2?I(c,e,t.s*Math.max(0,t.l-r)/1e4,i,V,b):(I(c,e,(-d(s(p(e.v,x(e,w)),p(c.v,x(c,v))),i)+-O*r)/B,i,V,b),t.t>2&&(m=e.a-c.a-t.l,(g=c.I+e.I)&&I(c,e,(-(e.A-c.A)+-O*m)/g,0,1,1,0)),r>0&&(B=c.M+e.M,transform(c,S(A,c.M/B),0),transform(e,S(A,-e.M/B),0))):(I(c,e,-t.s*(r-t.l)/1e3/B,i,V,b),I(c,e,-t.s*(r-t.l)/1e3/B,i,V,b)))}for(f of H)f.M&&(f.v=p(f.v,S(f.F,f.M<0?-f.M:f.M)),f.F=[0,0],f.A+=f.T*f.I,f.a+=f.A,transform(f,f.v,f.A),f.v=S(f.v,.99),Math.abs(l(f.v))<1e-4&&(f.v=[0,0]),f.A*=.99,Math.abs(f.A)<1e-4&&(f.A=0),f.T=0)}})()
+<script src=min.js></script>
 
+<script>
 // ==== Renderer (customizable) ====
 
 draw = (e, r) => {

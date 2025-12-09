@@ -1,20 +1,90 @@
-<!doctype html>
-<canvas id=a width=800 height=900 style="background:#eee;width:400px;height:450px;"></canvas>
+﻿<!doctype html>
+<title>2Dphysics</title>
+<body>
+
+<div>
+<h1>2Dphysics</h1>
+<br>
+<h3>The World's smallest 2D physics engine in JavaScript including springs and joints</h3>
+<br>
+<div class=button onclick="window.open('https://raw.githubusercontent.com/xem/2Dphysics/refs/heads/gh-pages/commented.html')"><b>Commented source</b><br>(20kb)</div>
+<div class=button onclick="window.open('https://raw.githubusercontent.com/xem/2Dphysics/refs/heads/gh-pages/min.js')"><b>Minified</b><br>(1.4kb zipped)</div>
+<div class=button onclick="window.open('https://raw.githubusercontent.com/xem/2Dphysics/refs/heads/gh-pages/micro.js')"><b>Micro</b><br>(no joints, 1.1kb zipped)</div>
+
+<br>
+<br>
+<h2>Source code</h2>
+<br>
+<pre><code class="lang-js">G=[0,.1],O=.4,E=.01,R=20,H=[],J=[],M=[],RECTANGLE=0,CIRCLE=1,SPRING=0,REPULSIVE=1,HINGE=2,FIXED=3;
+((n=x=>S(x,1/l(x)),l=x=>d(x,x)**.5,d=(x,y)=>x[0]*y[0]+x[1]*y[1],p=(x,y)=>[x[0]+y[0],x[1]+y[1]],s=(x,y)=>p(x,S(y,-1)),S=(x,y)=>[x[0]*y,x[1]*y],C=(x,y)=>x[0]*y[1]-x[1]*y[0],r=(x,y,l)=>[(x[0]-y[0])*Math.cos(l)-(x[1]-y[1])*Math.sin(l)+y[0],(x[0]-y[0])*Math.sin(l)+(x[1]-y[1])*Math.cos(l)+y[1]],x=(x,y)=>[-x.A*y[1],x.A*y[0]],I=(c,t,l,e,a,n,r=1,o)=>{r&&(o=S(e,l),c.v=s(c.v,S(o,c.M)),t.v=p(t.v,S(o,t.M))),c.R&&(c.A-=a*l*c.I),t.R&&(t.A+=n*l*t.I)})=>{shape=(t,c,m=1,w=9,h=9,g,n=t?m*w*w/2:m*(w*w+h*h)/12,s={t,m,w,h,c:[0,0],f:.5,r:.5,a:0,v:[0,0],A:0,g:G,F:[0,0],T:0,R:1,p:[],N:[],n:[[0,-1],[1,0],[0,1],[-1,0]],M:m?1/m:0,I:n?1/n:0,V:[[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2,h/2]],e:H.length,...g})=>(transform(s,c,s.a),H.push(s),s),anchor=(t,c)=>(t.p.push(p(c,t.c)),t.p.length-1),joint=(t,A,a,B,b,s,l)=>{if(t>1){A.N.push(B.e);B.N.push(A.e);l=B.a-A.a}J.push({t,A,a,B,b,s,l})},transform=(c,f,n,i=4)=>{if(c.c=p(c.c,f),!c.t)for(;i--;)c.n[i]=r(c.n[i],[0,0],n),c.V[i]=r(p(c.V[i],f),c.c,n);for(i in c.p)c.p[i]=r(p(c.p[i],f),c.c,n)},run=(a,f,t,c,e,h,o,r,A,v,w,i,V,b,B,m,g)=>{for(M=[],f=H.length;f--;)for(a=f-1;a>=0;a--)if(c=H[f],e=H[a],c.F=S(c.g,c.m),c.M+e.M&&!c.N.includes(a)){if(h=0,c.t&&e.t)o=s(e.c,c.c),(r=l(o))<c.w+e.w&&(h={d:c.w+e.w-r,n:n(o),c:p(c.c,S(n(o),c.w)),A:c,B:e});else if(c.t||e.t){for(!c.t&&e.t&&([e,c]=[c,e]),i=0,r=4;r--;)A=s(c.c,e.V[r]),v=s(e.V[(r+1)%4],e.V[r]),w=d(A,n(v)),e.n[r]&&d(A,e.n[r])>=0&&w>0&&w<l(v)&&(i=e.V[r],o=e.n[r]);if(!(h=i&&(V=d(o,s(c.c,i)))-c.w<0?{d:-V+c.w,n:S(o,-1),c:p(c.c,S(o,-c.w)),A:c,B:e}:0))for(r=4;r--;)v=s(e.V[r],c.c),l(v)<c.w&&(h={d:c.w-l(v),n:n(v),c:e.V[r],A:c,B:e})}else for(o=9e9,h=-1,t=2;t--;)for(t||([c,e]=[e,c]),r=4;r--;){for(A=0,v=0,i=4;i--;)(w=d(s(e.V[i],c.V[r]),S(c.n[r],-1)))>A&&(A=w,v={v:e.V[i],d:w});v||(h=0),h&&v.d<o&&(h={d:o=v.d,n:c.n[r],c:v.v,A:c,B:e})}h&&M.push(h)}for(a=R;a--;){for(f of M)c=f.A,e=f.B,h=s(p(e.v,x(e,i=s(f.c,e.c))),p(c.v,x(c,V=s(f.c,c.c)))),o=C(V,f.n),r=C(i,f.n),A=f.d*O,v=(-(1+Math.min(c.r,e.r))*d(h,f.n)+A)/(c.M+e.M+o*o*c.I+r*r*e.I),I(c,e,v,f.n,o,r),w=S(s(h,S(f.n,d(h,f.n))),-1),l(w)>0&&(b=C(V,w=n(w)),B=C(i,w),m=Math.min(c.f,e.f),g=-d(h,w)/(c.M+e.M+b*b*c.I+B*B*e.I),Math.abs(g)>Math.abs(v)*m&&(g=Math.sign(g)*Math.abs(v)*m),I(c,e,g,w,b,B));for(t of J)c=t.A,e=t.B,h=c.p[t.a],o=e.p[t.b],v=s(h,c.c),w=s(o,e.c),A=s(o,h),i=(r=l(A))>0?n(A):[1,0],V=C(v,i),b=C(w,i),(B=c.M+e.M+V*V*c.I+b*b*e.I+E)&&(t.t?t.t&lt;2?I(c,e,t.s*Math.max(0,t.l-r)/1e4,i,V,b):(I(c,e,(-d(s(p(e.v,x(e,w)),p(c.v,x(c,v))),i)+-O*r)/B,i,V,b),t.t>2&&(m=e.a-c.a-t.l,(g=c.I+e.I)&&I(c,e,(-(e.A-c.A)+-O*m)/g,0,1,1,0)),r>0&&(B=c.M+e.M,transform(c,S(A,c.M/B),0),transform(e,S(A,-e.M/B),0))):(I(c,e,-t.s*(r-t.l)/1e3/B,i,V,b),I(c,e,-t.s*(r-t.l)/1e3/B,i,V,b)))}for(f of H)f.M&&(f.v=p(f.v,S(f.F,f.M&lt;0?-f.M:f.M)),f.F=[0,0],f.A+=f.T*f.I,f.a+=f.A,transform(f,f.v,f.A),f.v=S(f.v,.99),Math.abs(l(f.v))&lt;1e-4&&(f.v=[0,0]),f.A*=.99,Math.abs(f.A)&lt;1e-4&&(f.A=0),f.T=0)}})()</code></pre>
+
+<br>
+<h2>API</h2>
+
+<br>
+
+<table>
+<tr>
+<td>
+<b>Globals</b>
+<ul>
+<li><b>G</b> = [0,.1] (Gravity)
+<li><b>O</b> = .4 (Shapes overlap correction)
+<li><b>E</b> = .01 (Fixed joints elasticity)
+<li><b>R</b> = 20 (Resolutions per frame)
+
+<li><b>H</b> = [] (shapes list)
+<li><b>J</b> = [] (joints list)
+<li><b>M</b> = []  (manifolds list)
+</ul>
+<td>
+<b>Shape types</b>
+<ul>
+<li><b>RECTANGLE</b> = 0;
+<li><b>CIRCLE</b> = 1;
+</ul>
+<b>Joint types</b>
+<ul>
+<li><b>SPRING</b> = 0;
+<li><b>REPULSIVE</b> = 1;
+<li><b>HINGE</b> = 2;
+<li><b>FIXED</b> = 3;
+</ul>
+</td>
+</tr>
+<tr>
+<td colspan=2>
+<b>Functions</b>
+<ul>
+<li><b>shape</b> (type, center, mass, width, height, options)
+<li><b>anchor</b> (shape, position)
+<li><b>joint</b> (type, shape1, anchor1, shape2, anchor2, strength, length)
+<li><b>transform</b> (shape, positionOffset, angleOffset)
+<li><b>run()</b>: run simulation
+<li><b>2D vectors</b> (shape center, anchor position, positionOffset) are arrays of the form [x, y].
+<li><b>Shape options</b>: {f: friction, r: restitution, a: angle, v: velocity, g: gravity, d: data (color) ...}
+<li>The renderer is not included, but <a href="https://github.com/xem/2Dphysics/blob/gh-pages/commented.html#L569-L638">an example</a> is present in the commented source code.
+</ul>
+</td>
+</tr>
+</table>
+<br>
+<br>
+<h2>Demo</h2>
+<br>
+<br>The "micro" version can only do the first two blocks.
+<br>
+<br>
+
+<canvas id=a width=800 height=900 style="background:#eee;width:580px;" onclick="start()"></canvas>
+
+<br><br>
+
+© Public domain - Xem, 2025
+<br>
+<a href="https://github.com/xem/2Dphysics">Source code on Github</a>
+
 <script>
-
-// ==== 2Dphysics ====
-
-//  API
-// -----
-
-// - shape(type, center, mass, width, height, {f: friction, r:restitution, a: angle, v: velocity, a: angularVelocity, g: gravity, d: customData)
-// - anchor(shape, position)
-// - joint(type, shape1, anchor1, shape2, anchor2, strength, length)
-// - run(): run simulation
-
-//  Globals
-// ---------
-
 // Constants
 G = [0,.1];     // Gravity
 O = .4;         // Shapes overlap correction
@@ -22,9 +92,9 @@ E = .01;        // Fixed joints elasticity
 R = 20;         // Resolutions per frame
 
 // Arrays
-H = [];         // shapes (circles, rectangles)
-J = [];         // joints (spring, repulsive, fixed, hinge)
-M = [];         // manifolds
+H = [];    // shapes (circles, rectangles)
+J = [];    // joints (spring, repulsive, hinge, fixed)
+M = [];    // manifolds (collision info)
 
 // Shapes types
 RECTANGLE = 0;
@@ -35,512 +105,10 @@ SPRING = 0;
 REPULSIVE = 1;
 HINGE = 2;
 FIXED = 3;
+</script>
 
-// Scope protection
-(() => {
-
-var 
-
-// 2D vectors helpers
-n=v=>S(v,1/l(v)),               // normalize
-l=v=>d(v,v)**.5,                // length
-d=(x,y)=>x[0]*y[0]+x[1]*y[1],   // dot
-p=(x,y)=>[x[0]+y[0],x[1]+y[1]], // add
-s=(x,y)=>p(x,S(y,-1)),          // sub
-S=(x,y)=>[x[0]*y,x[1]*y],       // scale
-C=(x,y)=>x[0]*y[1]-x[1]*y[0],   // cross
-r=(x,y,c)=>(                    // rotate (point, origin, angle)
-  [
-    (x[0] - y[0]) * Math.cos(c) - (x[1] - y[1]) * Math.sin(c) + y[0],
-    (x[0] - y[0]) * Math.sin(c) + (x[1] - y[1]) * Math.cos(c) + y[1]
-  ]
-),
-x=(shape,penetration)=>(        // scalar cross (shape x penetration)
-  [
-    -shape.A * penetration[1],
-    shape.A * penetration[0]
-  ]
-),
-
-// Apply normal impulse (linear + angular)
-// params: shapeA, shapeB, force, normal, aCrossN, bCrossN, doLinear
-I = (a, b, force, n, an, bn, doLinear = 1, t) => {
-
-  // linear
-  if(doLinear){
-    t = S(n, force);
-    a.v = s(a.v, S(t, a.M));
-    b.v = p(b.v, S(t, b.M));
-  }
-  
-  // angular
-  if(a.R) a.A -= an * force * a.I;
-  if(b.R) b.A += bn * force * b.I;
-};
-
-// Shapes
-// params: type, center, mass, width, height, {options}
-shape = (t, c, m = 1, w = 9, h = 9, o,
-
-  // inertia
-  i = (
-    t
-    ? m * w * w / 2 // circle
-    : m * (w * w + h * h) / 12 // rectangle
-  ),
-  
-  // shape
-  s = {
-    t,
-    m,
-    w,
-    h,
-    c: [0,0],
-    f: .5,              // friction
-    r: .5,              // restitution
-    a: 0,               // angle
-    v: [0, 0],          // velocity
-    A: 0,               // angular velocity
-    g: G,               // gravity
-    F: [0, 0],          // forceAccumulator
-    T: 0,               // torqueAccumulator
-    R: 1,               // rotations enabled
-    p: [],              // anchorPoints
-    N: [],              // noCollisions
-    n: [                // normals (rectangles only)
-      [0, -1],
-      [1, 0],
-      [0, 1],
-      [-1, 0]
-    ],
-
-    M: m ? 1 / m : 0,   // invMass
-    
-    I: i ? 1 / i : 0,   // invInertia
-    
-    V: t ? [] : [       // vertices (rectangles only)
-      [-w / 2, -h / 2],
-      [w / 2, -h / 2],
-      [w / 2, h / 2],
-      [-w / 2, h / 2]
-    ],
-    
-    e: H.length,        // index in shapes list
-    ...o,               // custom options
-  }
-) => (
-  transform(s, c, s.a), // rotate / translate the shape
-  H.push(s),            // add shape in shapes list
-  s                     // return shape
-),
-
-// Add an anchor to a shape
-// params: shape, position (local coordinates)
-anchor = (shape, position) => (
-  
-  // add anchor in the point's anchors list (converted in world coordinates)
-  shape.p.push(p(position, shape.c)),
-  
-  // return anchor index
-  shape.p.length - 1
-),
-
-// joints
-// params: type, shapeA, anchorA, shapeB, anchorB, strength, length
-// type: spring / repulse / hinge / fixed
-// strength and length are used in spring and repulse only
-// length: restLength (spring), minDistance (repulse)
-joint = (t, A, a, B, b, s, l) => {
-  
-  // hinge / fixed: disable collisions
-  if(t > 1){
-
-    // disable collisions between A and B
-    A.N.push(B.e);
-    B.N.push(A.e);
-
-    // save relativeAngle in l
-    l = B.a - A.a;
-  }
-  
-  J.push({
-    t,
-    A,
-    a,
-    B,
-    b,
-    s,
-    l,
-  });
-},
-
-// Transform a shape
-// params: shape, offset, angle
-transform = (shape, offset, angle, t = 4) => {
-  
-  // add offset to the shape's center
-  shape.c = p(shape.c, offset);
-  
-  // add offset / angle to the shape's vertices and normals (rectangle only)
-  if(!shape.t){
-    for(; t--;){
-      shape.n[t] = r(shape.n[t], [0,0], angle);
-      shape.V[t] = r(p(shape.V[t], offset), shape.c, angle);
-    }
-  }
-  
-  // add offset to the shape's anchor points
-  for(t in shape.p){
-    shape.p[t] = r(p(shape.p[t], offset), shape.c, angle);
-  }
-},
-
-// Run the simulation (1 frame)
-run = (
-  i, j, k,      // loop vars
-  body1, body2, // pair of bodies
-  t1,           // manifold / relative velocity / anchor1
-  t2,           // diff / effective mass 1 / anchor2 / best normal / SAT min depth
-  t3,           // dist / effective mass 2 / edge or corner counter / SAT axis counter
-  t4,           // rect-rect manifold 2 / baumgarte bias / separation / vertex-circle vector / SAT best vertex
-  t5,           // normal impulse scalar / relative vector 1 / vector vetween vertices / SAT best support point
-  t6,           // tangent / relative vector 2 / circle-rect projection / SAT best penetration
-  t7,           // scalar1 / separation normal / best vertex / support point loop var
-  t8,           // scalar2 / raCrossN / edge-circle distance
-  t9,           // effective mass along tangent 1 / rbCrossN
-  t10,          // effective mass along tangent 2 / invMass proportional sum
-  t11,          // friction coefficient / err
-  t12,          // desired friction impulse / invInertia sum
-) => {
-
-  // clear all the manifolds
-  M = [];
-
-  // collision detection
-  for(j = H.length; j--;){
-    for(i = j - 1; i >= 0; i--){
-      body1 = H[j],
-      body2 = H[i];
-      
-      // for each shape of the outer loop:
-      // reset acceleration and apply gravity
-      body1.F = S(body1.g, body1.m);
-      
-      // skip pairs of static bodies and bodies with fixed/hinge joints
-      if((body1.M + body2.M) && !body1.N.includes(i)){
-
-        // reset manifold
-        t1 = 0;
-
-        // circle-circle collision
-        // circles collide if the sum of their radii is smaller than their distance
-        if(body1.t && body2.t){
-          t2 = s(body2.c, body1.c);
-          t3 = l(t2);
-          if(t3 < body1.w + body2.w){
-            t1 = {
-              d: body1.w + body2.w - t3,        // depth
-              n: n(t2),                         // normal
-              c: p(body1.c, S(n(t2), body1.w)), // contactPoint
-              A: body1,                         // shapeA
-              B: body2                          // shapeB
-            };
-          }
-        }
-        
-        // rectangle-rectangle collision
-        else if(!body1.t && !body2.t){
-        
-          // test rect2 against rect1's axis and rect1 against rect2's axis
-          t2 = 9e9;
-          t1 = -1;
-          
-          // use a 2-loop to check each shape against the other
-          for(k = 2; k--;){
-            if(!k) [body1,body2] = [body2,body1];
-          
-            // for each axis
-            for(t3 = 4; t3--;){
-            
-              // find support point
-              t4 = 0;
-              t5 = 0;
-              for(t7 = 4; t7--;){
-                
-                // if penetration depth is higher than max depth, save it in t6, save the vertex in t4 and save the support point in t5
-                if((t6 = d(s(body2.V[t7], body1.V[t3]), S(body1.n[t3], -1))) > t4){
-                  t4 = t6;
-                  t5 = {
-                    v: body2.V[t7],  // vertex
-                    d: t6        // depth
-                  }
-                }
-              }
-              
-              // if no support point found (no collision), return 0
-              if(!t5) t1 = 0;
-              
-              // save the manifold t1 if this axis has the smallest penetration depth
-              if(t1 && t5.d < t2){
-                t1 = {
-                  d: t2 = t5.d, // depth
-                  n: body1.n[t3],  // normal
-                  c: t5.v,     // contactPoint
-                  A: body1,       // shapeA
-                  B: body2        // shapeB
-                }
-              }
-            }
-          }
-        }
-        
-        // circle-rectangle
-        else {
-
-          // if rectangle first, invert the bodies
-          if(!body1.t && body2.t){
-            [body2, body1] = [body1, body2];
-          }
-
-          // Try to detect a collision between the circle and the rectangle's edges:
-          t7 = 0;
-          
-          // for each edge
-          for(t3 = 4; t3--;){
-          
-            // create a vector t4 from first vertex of edge to the center of the circle
-            t4 = s(body1.c, body2.V[t3]);
-            
-            // create a vector t5 from first vertex to the second 
-            t5 = s(body2.V[(t3+1)%4], body2.V[t3]);
-            
-            // project t4 on t5
-            t6 = d(t4, n(t5));
-            
-            // project t4 on the edge's normal
-            // if the circle's center is within the edge's bounds and inside the rectangle, save the normal in t2 and the vertex in t7
-            if(body2.n[t3] && d(t4, body2.n[t3]) >= 0 && t6 > 0 && t6 < l(t5)){
-              t7 = body2.V[t3];
-              t2 = body2.n[t3];
-            }
-          }
-          
-          // no collision if t7 is 0
-          if(!t7) t1 = 0;
-          
-          // collision
-          else {
-          
-            // compute distance between edge and circle's center
-            t8 = d(t2, s(body1.c, t7));
-            
-            // return 0 (if no collision) or a manifold
-            t1 = t8 - body1.w < 0
-            ? {
-              d: -t8 + body1.w,                 // depth
-              n: S(t2, -1),                     // normal
-              c: p(body1.c, S(t2, -body1.w)),   // contactPoint
-              A: body1,                         // shapeA
-              B: body2                          // shapeB
-            }
-            : 0
-          }
-          
-          // if no edge collision is found, test against the rectangle's corners
-          // return the resulting contact information or 0 if none is found
-          if(!t1){
-            for(t3 = 4; t3--;){
-              if(t5 = s(body2.V[t3], body1.c), l(t5) < body1.w){
-                t1 = {
-                  d: body1.w - l(t5),   // depth
-                  n: n(t5),             // normal
-                  c: body2.V[t3],       // contactPoint
-                  A: body1,             // shapeA
-                  B: body2              // shapeB
-                };
-              }
-            }
-          }
-        }
-
-        // add manifold to list
-        if(t1) M.push(t1);
-      }
-    }
-  }
-
-  // resolve contacts and joints multiple times
-  for(i = R; i--;){
-  
-    // resolve contacts
-    for(j of M){
-    
-      body1 = j.A;
-      body2 = j.B;
-
-      // Movement impulses:
-
-      // relative velocity at contact point
-      t1 = s(
-        p(
-          body2.v,
-          x(
-            body2, 
-            t7 = s(j.c, body2.c)
-          )
-        ),
-        p(
-          body1.v, 
-          x(
-            body1,
-            t8 = s(j.c, body1.c)
-          )
-        )
-      );
-
-      // effective mass for normal direction
-      t2 = C(t8, j.n);
-      t3 = C(t7, j.n);
-
-      // compute Baumgarte bias from penetration to reduce positional drift
-      t4 = j.d * O;
-
-      // normal impulse scalar
-      t5 = (-(1 + Math.min(body1.r, body2.r)) * d(t1, j.n) + t4) / (body1.M + body2.M + t2 * t2 * body1.I + t3 * t3 * body2.I);
-
-      // apply impulses
-      I(body1, body2, t5, j.n, t2, t3);
-
-      // Friction impulses:
-      
-      // compute tangent
-      t6 = S(s(t1, S(j.n, d(t1, j.n))), -1);
-      
-      // if zero tangent, skip
-      if(l(t6) > 0) {
-   
-        // effective mass along tangent
-        t9 = C(t8, t6 = n(t6));
-        t10 = C(t7, t6);
-
-        // friction coefficient
-        t11 = Math.min(body1.f, body2.f);
-        
-        // desired friction impulse
-        t12 = (-d(t1, t6)) / (body1.M + body2.M + t9*t9*body1.I + t10*t10*body2.I);
-        
-        // clamp friction by normal impulse magnitude
-        if(Math.abs(t12) > Math.abs(t5) * t11) t12 = Math.sign(t12) * Math.abs(t5) * t11;
-        
-        // apply impulses
-        I(body1, body2, t12, t6, t9, t10);
-      }
-    }
-    
-    // resolve joints as contact-like constraints
-    for(k of J){
-      body1 = k.A;
-      body2 = k.B;
-
-      // world anchors
-      t1 = body1.p[k.a];
-      t2 = body2.p[k.b];
-
-      // relative vectors
-      t5 = s(t1, body1.c);
-      t6 = s(t2, body2.c);
-
-      // separation
-      t4 = s(t2, t1);
-      t3 = l(t4);
-      t7 = t3 > 0 ? n(t4) : [1,0];
-      
-      // effective mass
-      t8 = C(t5, t7);
-      t9 = C(t6, t7);
-      t10 = body1.M + body2.M + t8 * t8 * body1.I + t9 * t9 * body2.I + E;
-
-      if(t10){
-
-        // spring joint
-        if(!k.t){
-          I(body1, body2, ((-(k.s * (t3 - k.l)) / 1000) / t10), t7, t8, t9);
-          I(body1, body2, ((-(k.s * (t3 - k.l)) / 1000) / t10), t7, t8, t9);
-        }
-
-        // repulsion joint
-        else if(k.t < 2){
-          I(body1, body2, ((k.s * Math.max(0, k.l - t3)) / 10000), t7, t8, t9);
-        }
-
-        // hinge / fixed
-        else {
-
-          // linear impulses
-          I(body1, body2, (-(d(s(p(body2.v, x(body2, t6)), p(body1.v, x(body1, t5))), t7)) + (-(O * t3))) / t10, t7, t8, t9)
-
-          // angular correction (fixed only)
-          if(k.t > 2){
-            
-            t11 = (body2.a - body1.a) - k.l;
-            t12 = body1.I + body2.I;
-            if(t12){
-              I(body1, body2, (-(body2.A - body1.A) + (-(O * t11)) ) / t12, 0, 1, 1, 0);
-            }
-          }
-
-          // position correction (keep anchors superposed)
-          if(t3 > 0){
-            t10 = body1.M + body2.M;
-            transform(body1, S(t4, (body1.M / t10)), 0);
-            transform(body2, S(t4, -(body2.M / t10)), 0);
-          }
-        }
-      }
-    }
-  }
-
-  // integrate shapes
-  for(j of H){
-
-    // skip fixed objects
-    if(j.M){
-      
-      // add force accumulator to velocity (proportionally to inverse mass)
-      j.v = p(j.v, S(j.F, j.M < 0 ? -j.M : j.M));
-      
-      // reset force accumulator
-      j.F = [0,0];
-      
-      // add torque to angular velocity (proportionally to inverse inertia)
-      j.A += j.T * j.I;
-      
-      // update angle
-      j.a += j.A;
-      
-      // rotate / translate shape
-      transform(j, j.v, j.A);
-
-      // damp velocity
-      j.v = S(j.v, .99);
-      
-      // set tiny velocity to zero (to avoid jittering)
-      if(Math.abs(l(j.v)) < .0001) j.v = [0,0];
-      
-      // damp angular velocity
-      j.A *= .99;
-      
-      // set tiny rotations to zero
-      if(Math.abs(j.A) < .0001) j.A = 0;
-      
-      // reset torque accumulator
-      j.T = 0;
-    }
-  }
-};
-
-})();
-
+<script src=min.js></script>
+<script>
 // ==== Renderer (customizable) ====
 
 draw = (e, r) => {
@@ -552,7 +120,7 @@ draw = (e, r) => {
   for(e of H){
     
     c.save(),
-    c.beginPath();
+    c.beginPath()
     
     // circle
     if(e.t === CIRCLE){
@@ -617,117 +185,310 @@ draw = (e, r) => {
 // Canvas setup
 c = a.getContext`2d`,
 
-// Demo
+interval = null;
 
-// Grid
-shape(RECTANGLE, [400, 20], 0, 780, 20);
-shape(RECTANGLE, [400, 300], 0, 780, 20);
-shape(RECTANGLE, [400, 580], 0, 780, 20);
-shape(RECTANGLE, [400, 880], 0, 780, 20);
-shape(RECTANGLE, [20, 450], 0, 20, 880);
-shape(RECTANGLE, [280, 450], 0, 20, 880);
-shape(RECTANGLE, [540, 450], 0, 20, 880);
-shape(RECTANGLE, [780, 450], 0, 20, 880);
-
-// Stress test
-for(i=35;i--;){
-  shape(CIRCLE, [65 - i/2 + (i % 8) * 25, 55+ (i / 8) * 40], 1, 10);
-  shape(RECTANGLE, [50 + i/2 + (i % 8) * 25, 35+ (i / 8) * 40], 1, 20, 15);
-}
-
-
-// Extra params
-r1 = shape(1, [370, 80], 1, 30, 30, {f: .9, r: .1, a:.6, v:[2,-1], A:-.3, g:[0,.1], d:"#dcb"});
-r2 = shape(0, [400, 230], 0, 90, 50, {a: .2, d: "#def"});
-r3 = shape(1, [390, 270], 1, 10, 10, {g: [0,-.1], d: "#dfe"});
-r4 = shape(1, [410, 270], 1, 10, 10, {g: [0,-.05], d: "#efd"});
-r5 = shape(1, [430, 270], 1, 10, 10, {g: [0,-.02], d: "#fed"});
-r6 = shape(1, [330, 40], 1, 10, 10, {g: [.1,0], d: "#edf"});
-r7 = shape(1, [470, 100], 1, 10, 10, {g: [-.1,0], d: "#fde"});
-
-// Spring joint
-r1 = shape(RECTANGLE, [630, 100], 0, 90, 50);
-a1 = anchor(r1, [20,15], r1);
-c1 = shape(CIRCLE, [590, 250], 1, 30, 30);
-a2 = anchor(c1, [0,-10], c1);
-joint(SPRING, r1, a1, c1, a2, .2, 80);
-
-// Repulsive joint
-for(i=10;i--;){
-  shape(CIRCLE, [180+Math.random() * 30, 520+Math.random() * 20], Math.random()*5+5, 10, 10, .5, .5);
-}
-r1 = shape(RECTANGLE, [100, 520], 0, 90, 50);
-a1 = anchor(r1, [0,-25]);
-c1 = shape(CIRCLE, [120, 480], 1, 30);
-a2 = anchor(c1, [-20,0]);
-joint(REPULSIVE, r1, a1, c1, a2, .2, 200);
-
-// Fixed joint
-for(i=20;i--;){
-  shape(CIRCLE, [300+Math.random() * (780/3 - 50), 520+Math.random() * 20], Math.random()*5+5, 10,10, .5, .5);
-}
-r1 = shape(RECTANGLE, [400, 420], 10, 90, 50);
-a1 = anchor(r1, [0,-15]);
-c1 = shape(CIRCLE, [400, 400], 10, 30);
-a2 = anchor(c1, [0,20]);
-joint(FIXED, r1, a1, c1, a2);
-
-// Hinge joint
-r1 = shape(RECTANGLE, [630, 460], 0, 90, 50);
-a1 = anchor(r1, [20,15]);
-c1 = shape(CIRCLE, [665, 465], 100, 30, 30);
-a2 = anchor(c1, [-20,10]);
-joint(HINGE, r1, a1, c1, a2);
-
-
-// Loop
-s1b = shape(RECTANGLE, [410+510-780, 70+300+300], 0, 200, 30);
-s2 = shape(CIRCLE, [360+510-780, 90+300+300], 10, 30);
-s3 = shape(RECTANGLE, [450+510-780, 110+300+300], 10, 30, 60);
-s4 = shape(RECTANGLE, [370+510-780, 150+300+300], 10, 30, 100);
-s5 = shape(RECTANGLE, [470+510-780, 150+300+300], 10, 30, 100);
-s6 = shape(CIRCLE, [400+510-780-20, 200+300+300], 10, 20);
-s7 = shape(CIRCLE, [400+510-780+20, 200+300+300], 10, 20);
-a1a = anchor(s1b, [-60,10]);
-a1b = anchor(s1b, [70,10]);
-a2a = anchor(s2, [0,-20]);
-a2b = anchor(s2, [-20,20]);
-a3a = anchor(s3, [10,-20]);
-a3b = anchor(s3, [-10,20]);
-j1 = joint(HINGE, s1b, a1a, s2, a2a);
-j2 = joint(HINGE, s1b, a1b, s3, a3a);
-a4a = anchor(s4, [0,-40]);
-a4b = anchor(s4, [0,40]);
-a5a = anchor(s5, [0,-40]);
-a5b = anchor(s5, [0,40]);
-j3 = joint(HINGE, s2, a2b, s4, a4a);
-j4 = joint(HINGE, s3, a3b, s5, a5a);
-a6a = anchor(s6, [-15,0]);
-a6b = anchor(s6, [15,0]);
-a7a = anchor(s7, [-15,0]);
-a7b = anchor(s7, [15,0]);
-j5 = joint(HINGE, s6, a6a, s4, a4b);
-j6 = joint(FIXED, s6, a6b, s7, a7a);
-j7 = joint(HINGE, s7, a7b, s5, a5b);
-
-// Kinematic
-
-for(i=35;i--;){
-  shape(i%2, [345 - i/2 + (i % 8) * 25, 655+ (i / 8) * 40], 1, i%2?10:20,20);
-}
-r9 = shape(RECTANGLE, [350, 800], 0, 50, 10, {d: "#88F"});
-
-// No rotations
-s1 = shape(RECTANGLE, [680, 800], 0, 200, 20, {a: -.6, f: 1, r: .5});
-s2 = shape(RECTANGLE, [730, 700], 10, 30, 50, {d: "#F8F", f: .1, r: .5, R: 0});
-s2 = shape(CIRCLE, [680, 700], 10, 30, 50, {d: "#F88", f: .1, r: .5, R: 0});
 
 // Main loop
-time = 0;
-setInterval(() => {
-  time++;
-  run();
-  transform(r9, [Math.sin(time/70) * .8, 0], -0.01);
-  draw();
-}, 16);
+start = (Int = 1) => {
+  clearInterval(interval);
+  H = [];
+  J = [];
+  
+  
+  // Demo
+
+  // Grid
+  shape(RECTANGLE, [400, 20], 0, 780, 20);
+  shape(RECTANGLE, [400, 300], 0, 780, 20);
+  shape(RECTANGLE, [400, 580], 0, 780, 20);
+  shape(RECTANGLE, [400, 880], 0, 780, 20);
+  shape(RECTANGLE, [20, 450], 0, 20, 880);
+  shape(RECTANGLE, [280, 450], 0, 20, 880);
+  shape(RECTANGLE, [540, 450], 0, 20, 880);
+  shape(RECTANGLE, [780, 450], 0, 20, 880);
+
+  // Stress test
+  for(i=35;i--;){
+    shape(CIRCLE, [65 - i/2 + (i % 8) * 25, 55+ (i / 8) * 40], 1, 10);
+    shape(RECTANGLE, [50 + i/2 + (i % 8) * 25, 35+ (i / 8) * 40], 1, 20, 15);
+  }
+
+
+  // Extra params
+  r1 = shape(1, [370, 80], 1, 30, 30, {f: .9, r: .1, a:.6, v:[2,-1], A:-.3, g:[0,.1], d:"#dcb"});
+  r2 = shape(0, [400, 230], 0, 90, 50, {a: .2, d: "#def"});
+  r3 = shape(1, [390, 270], 1, 10, 10, {g: [0,-.1], d: "#dfe"});
+  r4 = shape(1, [410, 270], 1, 10, 10, {g: [0,-.05], d: "#efd"});
+  r5 = shape(1, [430, 270], 1, 10, 10, {g: [0,-.02], d: "#fed"});
+  r6 = shape(1, [330, 40], 1, 10, 10, {g: [.1,0], d: "#edf"});
+  r7 = shape(1, [470, 100], 1, 10, 10, {g: [-.1,0], d: "#fde"});
+
+  // Spring joint
+  r1 = shape(RECTANGLE, [630, 100], 0, 90, 50);
+  a1 = anchor(r1, [20,15], r1);
+  c1 = shape(CIRCLE, [590, 250], 1, 30, 30);
+  a2 = anchor(c1, [0,-10], c1);
+  joint(SPRING, r1, a1, c1, a2, .2, 80);
+
+  // Repulsive joint
+  for(i=10;i--;){
+    shape(CIRCLE, [180+Math.random() * 30, 520+Math.random() * 20], Math.random()*5+5, 10, 10, .5, .5);
+  }
+  r1 = shape(RECTANGLE, [100, 520], 0, 90, 50);
+  a1 = anchor(r1, [0,-25]);
+  c1 = shape(CIRCLE, [120, 480], 1, 30);
+  a2 = anchor(c1, [-20,0]);
+  joint(REPULSIVE, r1, a1, c1, a2, .2, 200);
+
+  // Fixed joint
+  for(i=20;i--;){
+    shape(CIRCLE, [300+Math.random() * (780/3 - 50), 520+Math.random() * 20], Math.random()*5+5, 10,10, .5, .5);
+  }
+  r1 = shape(RECTANGLE, [400, 420], 10, 90, 50);
+  a1 = anchor(r1, [0,-15]);
+  c1 = shape(CIRCLE, [400, 400], 10, 30);
+  a2 = anchor(c1, [0,20]);
+  joint(FIXED, r1, a1, c1, a2);
+
+  // Hinge joint
+  r1 = shape(RECTANGLE, [630, 460], 0, 90, 50);
+  a1 = anchor(r1, [20,15]);
+  c1 = shape(CIRCLE, [665, 465], 100, 30, 30);
+  a2 = anchor(c1, [-20,10]);
+  joint(HINGE, r1, a1, c1, a2);
+
+
+  // Loop
+  s1b = shape(RECTANGLE, [410+510-780, 70+300+300], 0, 200, 30);
+  s2 = shape(CIRCLE, [360+510-780, 90+300+300], 10, 30);
+  s3 = shape(RECTANGLE, [450+510-780, 110+300+300], 10, 30, 60);
+  s4 = shape(RECTANGLE, [370+510-780, 150+300+300], 10, 30, 100);
+  s5 = shape(RECTANGLE, [470+510-780, 150+300+300], 10, 30, 100);
+  s6 = shape(CIRCLE, [400+510-780-20, 200+300+300], 10, 20);
+  s7 = shape(CIRCLE, [400+510-780+20, 200+300+300], 10, 20);
+  a1a = anchor(s1b, [-60,10]);
+  a1b = anchor(s1b, [70,10]);
+  a2a = anchor(s2, [0,-20]);
+  a2b = anchor(s2, [-20,20]);
+  a3a = anchor(s3, [10,-20]);
+  a3b = anchor(s3, [-10,20]);
+  j1 = joint(HINGE, s1b, a1a, s2, a2a);
+  j2 = joint(HINGE, s1b, a1b, s3, a3a);
+  a4a = anchor(s4, [0,-40]);
+  a4b = anchor(s4, [0,40]);
+  a5a = anchor(s5, [0,-40]);
+  a5b = anchor(s5, [0,40]);
+  j3 = joint(HINGE, s2, a2b, s4, a4a);
+  j4 = joint(HINGE, s3, a3b, s5, a5a);
+  a6a = anchor(s6, [-15,0]);
+  a6b = anchor(s6, [15,0]);
+  a7a = anchor(s7, [-15,0]);
+  a7b = anchor(s7, [15,0]);
+  j5 = joint(HINGE, s6, a6a, s4, a4b);
+  j6 = joint(FIXED, s6, a6b, s7, a7a);
+  j7 = joint(HINGE, s7, a7b, s5, a5b);
+
+  // Kinematic
+
+  for(i=35;i--;){
+    shape(i%2, [345 - i/2 + (i % 8) * 25, 655+ (i / 8) * 40], 1, i%2?10:20,20);
+  }
+  r9 = shape(RECTANGLE, [350, 800], 0, 50, 10, {d: "#88F"});
+
+  // No rotations
+  s1 = shape(RECTANGLE, [680, 800], 0, 200, 20, {a: -.6, f: 1, r: .5});
+  s2 = shape(RECTANGLE, [730, 700], 10, 30, 50, {d: "#F8F", f: .1, r: .5, R: 0});
+  s2 = shape(CIRCLE, [680, 700], 10, 30, 50, {d: "#F88", f: .1, r: .5, R: 0});
+  
+
+  time = 0;
+  console.log(Int, time); 
+  if(Int){
+    interval = setInterval(() => {
+      time++;
+      run();
+      transform(r9, [Math.sin(time/70) * .8, 0], -0.01);
+      draw();
+    }, 16);
+  }
+  else {
+    interval = setInterval(() => {
+      time++;
+      run();
+      transform(r9, [Math.sin(time/70) * .8, 0], -0.01);
+      draw();
+      if(time == 80) {
+      
+        clearInterval(interval); 
+        c.font = "bold 150px Calibri, Arial";
+        c.fillText("PAUSE", 230, 420);
+        c.font = "bold 50px Calibri, Arial";
+        c.fillText("CLICK TO RESTART", 230, 460);
+       
+       
+      
+      }
+    }, 16);
+  }
+  
+  
+}
+
+start(0);
+</script>
+
+</body>
+
+<style>
+*{margin: 0; padding: 0; box-sizing: border-box }
+body > div { width: 600px; margin: 20px auto; min-height: 100vh; background: #eee; border-radius: 20px; padding: 15px; font: 14px Calibri, arial; box-shadow: 0 0 20px #888; text-align: center; }
+h1, h2, h3 { text-align: center; }
+h1 { font-size: 50px }
+h3 { font-size: 16px }
+h2 { font-size: 20px }
+.button { width: 180px; height: 75px; display: inline-block; vertical-align: top; background: #eef; border-radius: 15px; padding: 15px; border: 2px solid #888; text-align: center; cursor: pointer; }
+ul { text-align: left; margin: 5px 20px }
+table {border-collapse: collapse }
+table b { text-align: left; width: 200px; display: block; }
+ul b { text-align: left; width: auto; display: inline; }
+td { width: 320px; vertical-align: top; border: 4px solid #ccc; padding: 10px 10px 0; background: #f8f8f8; }
+
+/* PrismJS 1.16.0
+https://prismjs.com/download.html#themes=prism-okaidia&languages=markup+css+clike+javascript+css-extras */
+/**
+ * okaidia theme for JavaScript, CSS and HTML
+ * Loosely based on Monokai textmate theme by http://www.monokai.nl/
+ * @author ocodia
+ */
+
+code[class*="language-"],
+pre[class*="language-"] {
+	color: #f8f8f2;
+	background: none;
+	text-shadow: 0 1px rgba(0, 0, 0, 0.3);
+	font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+	font-size: 10px;
+	text-align: left;
+	white-space: pre-wrap;
+	word-spacing: normal;
+	word-break: break-all;
+	word-wrap: normal;
+	line-height: 1.5;
+
+	-moz-tab-size: 4;
+	-o-tab-size: 4;
+	tab-size: 4;
+
+	-webkit-hyphens: none;
+	-moz-hyphens: none;
+	-ms-hyphens: none;
+	hyphens: none;
+}
+
+/* Code blocks */
+pre[class*="language-"] {
+	padding: 1em;
+	margin: .5em 0;
+	overflow: auto;
+	border-radius: 0.3em;
+}
+
+:not(pre) > code[class*="language-"],
+pre[class*="language-"] {
+	background: #272822;
+}
+
+/* Inline code */
+:not(pre) > code[class*="language-"] {
+	padding: .1em;
+	border-radius: .3em;
+	white-space: normal;
+}
+
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+	color: slategray;
+}
+
+.token.punctuation {
+	color: #f8f8f2;
+}
+
+.namespace {
+	opacity: .7;
+}
+
+.token.property,
+.token.tag,
+.token.constant,
+.token.symbol,
+.token.deleted {
+	color: #f92672;
+}
+
+.token.boolean,
+.token.number {
+	color: #ae81ff;
+}
+
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin,
+.token.inserted {
+	color: #a6e22e;
+}
+
+.token.operator,
+.token.entity,
+.token.url,
+.language-css .token.string,
+.style .token.string,
+.token.variable {
+	color: #f8f8f2;
+}
+
+.token.atrule,
+.token.attr-value,
+.token.function,
+.token.class-name {
+	color: #e6db74;
+}
+
+.token.keyword {
+	color: #66d9ef;
+}
+
+.token.regex,
+.token.important {
+	color: #fd971f;
+}
+
+.token.important,
+.token.bold {
+	font-weight: bold;
+}
+.token.italic {
+	font-style: italic;
+}
+
+.token.entity {
+	cursor: help;
+}
+
+
+</style>
+
+<script>
+/* PrismJS 1.16.0
+https://prismjs.com/download.html#themes=prism-okaidia&languages=markup+css+clike+javascript+css-extras */
+var _self="undefined"!=typeof window?window:"undefined"!=typeof WorkerGlobalScope&&self instanceof WorkerGlobalScope?self:{},Prism=function(g){var c=/\blang(?:uage)?-([\w-]+)\b/i,a=0,C={manual:g.Prism&&g.Prism.manual,disableWorkerMessageHandler:g.Prism&&g.Prism.disableWorkerMessageHandler,util:{encode:function(e){return e instanceof M?new M(e.type,C.util.encode(e.content),e.alias):Array.isArray(e)?e.map(C.util.encode):e.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/\u00a0/g," ")},type:function(e){return Object.prototype.toString.call(e).slice(8,-1)},objId:function(e){return e.__id||Object.defineProperty(e,"__id",{value:++a}),e.__id},clone:function n(e,t){var r,a,i=C.util.type(e);switch(t=t||{},i){case"Object":if(a=C.util.objId(e),t[a])return t[a];for(var l in r={},t[a]=r,e)e.hasOwnProperty(l)&&(r[l]=n(e[l],t));return r;case"Array":return a=C.util.objId(e),t[a]?t[a]:(r=[],t[a]=r,e.forEach(function(e,a){r[a]=n(e,t)}),r);default:return e}}},languages:{extend:function(e,a){var n=C.util.clone(C.languages[e]);for(var t in a)n[t]=a[t];return n},insertBefore:function(n,e,a,t){var r=(t=t||C.languages)[n],i={};for(var l in r)if(r.hasOwnProperty(l)){if(l==e)for(var o in a)a.hasOwnProperty(o)&&(i[o]=a[o]);a.hasOwnProperty(l)||(i[l]=r[l])}var s=t[n];return t[n]=i,C.languages.DFS(C.languages,function(e,a){a===s&&e!=n&&(this[e]=i)}),i},DFS:function e(a,n,t,r){r=r||{};var i=C.util.objId;for(var l in a)if(a.hasOwnProperty(l)){n.call(a,l,a[l],t||l);var o=a[l],s=C.util.type(o);"Object"!==s||r[i(o)]?"Array"!==s||r[i(o)]||(r[i(o)]=!0,e(o,n,l,r)):(r[i(o)]=!0,e(o,n,null,r))}}},plugins:{},highlightAll:function(e,a){C.highlightAllUnder(document,e,a)},highlightAllUnder:function(e,a,n){var t={callback:n,selector:'code[class*="language-"], [class*="language-"] code, code[class*="lang-"], [class*="lang-"] code'};C.hooks.run("before-highlightall",t);for(var r,i=t.elements||e.querySelectorAll(t.selector),l=0;r=i[l++];)C.highlightElement(r,!0===a,t.callback)},highlightElement:function(e,a,n){for(var t,r="none",i=e;i&&!c.test(i.className);)i=i.parentNode;i&&(r=(i.className.match(c)||[,"none"])[1].toLowerCase(),t=C.languages[r]),e.className=e.className.replace(c,"").replace(/\s+/g," ")+" language-"+r,e.parentNode&&(i=e.parentNode,/pre/i.test(i.nodeName)&&(i.className=i.className.replace(c,"").replace(/\s+/g," ")+" language-"+r));var l={element:e,language:r,grammar:t,code:e.textContent},o=function(e){l.highlightedCode=e,C.hooks.run("before-insert",l),l.element.innerHTML=l.highlightedCode,C.hooks.run("after-highlight",l),C.hooks.run("complete",l),n&&n.call(l.element)};if(C.hooks.run("before-sanity-check",l),l.code)if(C.hooks.run("before-highlight",l),l.grammar)if(a&&g.Worker){var s=new Worker(C.filename);s.onmessage=function(e){o(e.data)},s.postMessage(JSON.stringify({language:l.language,code:l.code,immediateClose:!0}))}else o(C.highlight(l.code,l.grammar,l.language));else o(C.util.encode(l.code));else C.hooks.run("complete",l)},highlight:function(e,a,n){var t={code:e,grammar:a,language:n};return C.hooks.run("before-tokenize",t),t.tokens=C.tokenize(t.code,t.grammar),C.hooks.run("after-tokenize",t),M.stringify(C.util.encode(t.tokens),t.language)},matchGrammar:function(e,a,n,t,r,i,l){for(var o in n)if(n.hasOwnProperty(o)&&n[o]){if(o==l)return;var s=n[o];s="Array"===C.util.type(s)?s:[s];for(var g=0;g<s.length;++g){var c=s[g],u=c.inside,h=!!c.lookbehind,f=!!c.greedy,d=0,m=c.alias;if(f&&!c.pattern.global){var p=c.pattern.toString().match(/[imuy]*$/)[0];c.pattern=RegExp(c.pattern.source,p+"g")}c=c.pattern||c;for(var y=t,v=r;y<a.length;v+=a[y].length,++y){var k=a[y];if(a.length>e.length)return;if(!(k instanceof M)){if(f&&y!=a.length-1){if(c.lastIndex=v,!(x=c.exec(e)))break;for(var b=x.index+(h?x[1].length:0),w=x.index+x[0].length,A=y,P=v,O=a.length;A<O&&(P<w||!a[A].type&&!a[A-1].greedy);++A)(P+=a[A].length)<=b&&(++y,v=P);if(a[y]instanceof M)continue;N=A-y,k=e.slice(v,P),x.index-=v}else{c.lastIndex=0;var x=c.exec(k),N=1}if(x){h&&(d=x[1]?x[1].length:0);w=(b=x.index+d)+(x=x[0].slice(d)).length;var j=k.slice(0,b),S=k.slice(w),E=[y,N];j&&(++y,v+=j.length,E.push(j));var _=new M(o,u?C.tokenize(x,u):x,m,x,f);if(E.push(_),S&&E.push(S),Array.prototype.splice.apply(a,E),1!=N&&C.matchGrammar(e,a,n,y,v,!0,o),i)break}else if(i)break}}}}},tokenize:function(e,a){var n=[e],t=a.rest;if(t){for(var r in t)a[r]=t[r];delete a.rest}return C.matchGrammar(e,n,a,0,0,!1),n},hooks:{all:{},add:function(e,a){var n=C.hooks.all;n[e]=n[e]||[],n[e].push(a)},run:function(e,a){var n=C.hooks.all[e];if(n&&n.length)for(var t,r=0;t=n[r++];)t(a)}},Token:M};function M(e,a,n,t,r){this.type=e,this.content=a,this.alias=n,this.length=0|(t||"").length,this.greedy=!!r}if(g.Prism=C,M.stringify=function(e,a){if("string"==typeof e)return e;if(Array.isArray(e))return e.map(function(e){return M.stringify(e,a)}).join("");var n={type:e.type,content:M.stringify(e.content,a),tag:"span",classes:["token",e.type],attributes:{},language:a};if(e.alias){var t=Array.isArray(e.alias)?e.alias:[e.alias];Array.prototype.push.apply(n.classes,t)}C.hooks.run("wrap",n);var r=Object.keys(n.attributes).map(function(e){return e+'="'+(n.attributes[e]||"").replace(/"/g,"&quot;")+'"'}).join(" ");return"<"+n.tag+' class="'+n.classes.join(" ")+'"'+(r?" "+r:"")+">"+n.content+"</"+n.tag+">"},!g.document)return g.addEventListener&&(C.disableWorkerMessageHandler||g.addEventListener("message",function(e){var a=JSON.parse(e.data),n=a.language,t=a.code,r=a.immediateClose;g.postMessage(C.highlight(t,C.languages[n],n)),r&&g.close()},!1)),C;var e=document.currentScript||[].slice.call(document.getElementsByTagName("script")).pop();return e&&(C.filename=e.src,C.manual||e.hasAttribute("data-manual")||("loading"!==document.readyState?window.requestAnimationFrame?window.requestAnimationFrame(C.highlightAll):window.setTimeout(C.highlightAll,16):document.addEventListener("DOMContentLoaded",C.highlightAll))),C}(_self);"undefined"!=typeof module&&module.exports&&(module.exports=Prism),"undefined"!=typeof global&&(global.Prism=Prism);
+Prism.languages.markup={comment:/<!--[\s\S]*?-->/,prolog:/<\?[\s\S]+?\?>/,doctype:/<!DOCTYPE[\s\S]+?>/i,cdata:/<!\[CDATA\[[\s\S]*?]]>/i,tag:{pattern:/<\/?(?!\d)[^\s>\/=$<%]+(?:\s(?:\s*[^\s>\/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s'">=]+(?=[\s>]))|(?=[\s/>])))+)?\s*\/?>/i,greedy:!0,inside:{tag:{pattern:/^<\/?[^\s>\/]+/i,inside:{punctuation:/^<\/?/,namespace:/^[^\s>\/:]+:/}},"attr-value":{pattern:/=\s*(?:"[^"]*"|'[^']*'|[^\s'">=]+)/i,inside:{punctuation:[/^=/,{pattern:/^(\s*)["']|["']$/,lookbehind:!0}]}},punctuation:/\/?>/,"attr-name":{pattern:/[^\s>\/]+/,inside:{namespace:/^[^\s>\/:]+:/}}}},entity:/&#?[\da-z]{1,8};/i},Prism.languages.markup.tag.inside["attr-value"].inside.entity=Prism.languages.markup.entity,Prism.hooks.add("wrap",function(a){"entity"===a.type&&(a.attributes.title=a.content.replace(/&amp;/,"&"))}),Object.defineProperty(Prism.languages.markup.tag,"addInlined",{value:function(a,e){var s={};s["language-"+e]={pattern:/(^<!\[CDATA\[)[\s\S]+?(?=\]\]>$)/i,lookbehind:!0,inside:Prism.languages[e]},s.cdata=/^<!\[CDATA\[|\]\]>$/i;var n={"included-cdata":{pattern:/<!\[CDATA\[[\s\S]*?\]\]>/i,inside:s}};n["language-"+e]={pattern:/[\s\S]+/,inside:Prism.languages[e]};var i={};i[a]={pattern:RegExp("(<__[\\s\\S]*?>)(?:<!\\[CDATA\\[[\\s\\S]*?\\]\\]>\\s*|[\\s\\S])*?(?=<\\/__>)".replace(/__/g,a),"i"),lookbehind:!0,greedy:!0,inside:n},Prism.languages.insertBefore("markup","cdata",i)}}),Prism.languages.xml=Prism.languages.extend("markup",{}),Prism.languages.html=Prism.languages.markup,Prism.languages.mathml=Prism.languages.markup,Prism.languages.svg=Prism.languages.markup;
+!function(s){var t=/("|')(?:\\(?:\r\n|[\s\S])|(?!\1)[^\\\r\n])*\1/;s.languages.css={comment:/\/\*[\s\S]*?\*\//,atrule:{pattern:/@[\w-]+[\s\S]*?(?:;|(?=\s*\{))/,inside:{rule:/@[\w-]+/}},url:{pattern:RegExp("url\\((?:"+t.source+"|[^\n\r()]*)\\)","i"),inside:{function:/^url/i,punctuation:/^\(|\)$/}},selector:RegExp("[^{}\\s](?:[^{};\"']|"+t.source+")*?(?=\\s*\\{)"),string:{pattern:t,greedy:!0},property:/[-_a-z\xA0-\uFFFF][-\w\xA0-\uFFFF]*(?=\s*:)/i,important:/!important\b/i,function:/[-a-z0-9]+(?=\()/i,punctuation:/[(){};:,]/},s.languages.css.atrule.inside.rest=s.languages.css;var e=s.languages.markup;e&&(e.tag.addInlined("style","css"),s.languages.insertBefore("inside","attr-value",{"style-attr":{pattern:/\s*style=("|')(?:\\[\s\S]|(?!\1)[^\\])*\1/i,inside:{"attr-name":{pattern:/^\s*style/i,inside:e.tag.inside},punctuation:/^\s*=\s*['"]|['"]\s*$/,"attr-value":{pattern:/.+/i,inside:s.languages.css}},alias:"language-css"}},e.tag))}(Prism);
+Prism.languages.clike={comment:[{pattern:/(^|[^\\])\/\*[\s\S]*?(?:\*\/|$)/,lookbehind:!0},{pattern:/(^|[^\\:])\/\/.*/,lookbehind:!0,greedy:!0}],string:{pattern:/(["'])(?:\\(?:\r\n|[\s\S])|(?!\1)[^\\\r\n])*\1/,greedy:!0},"class-name":{pattern:/((?:\b(?:class|interface|extends|implements|trait|instanceof|new)\s+)|(?:catch\s+\())[\w.\\]+/i,lookbehind:!0,inside:{punctuation:/[.\\]/}},keyword:/\b(?:if|else|while|do|for|return|in|instanceof|function|new|try|throw|catch|finally|null|break|continue)\b/,boolean:/\b(?:true|false)\b/,function:/\w+(?=\()/,number:/\b0x[\da-f]+\b|(?:\b\d+\.?\d*|\B\.\d+)(?:e[+-]?\d+)?/i,operator:/--?|\+\+?|!=?=?|<=?|>=?|==?=?|&&?|\|\|?|\?|\*|\/|~|\^|%/,punctuation:/[{}[\];(),.:]/};
+Prism.languages.javascript=Prism.languages.extend("clike",{"class-name":[Prism.languages.clike["class-name"],{pattern:/(^|[^$\w\xA0-\uFFFF])[_$A-Z\xA0-\uFFFF][$\w\xA0-\uFFFF]*(?=\.(?:prototype|constructor))/,lookbehind:!0}],keyword:[{pattern:/((?:^|})\s*)(?:catch|finally)\b/,lookbehind:!0},{pattern:/(^|[^.])\b(?:as|async(?=\s*(?:function\b|\(|[$\w\xA0-\uFFFF]|$))|await|break|case|class|const|continue|debugger|default|delete|do|else|enum|export|extends|for|from|function|get|if|implements|import|in|instanceof|interface|let|new|null|of|package|private|protected|public|return|set|static|super|switch|this|throw|try|typeof|undefined|var|void|while|with|yield)\b/,lookbehind:!0}],number:/\b(?:(?:0[xX][\dA-Fa-f]+|0[bB][01]+|0[oO][0-7]+)n?|\d+n|NaN|Infinity)\b|(?:\b\d+\.?\d*|\B\.\d+)(?:[Ee][+-]?\d+)?/,function:/[_$a-zA-Z\xA0-\uFFFF][$\w\xA0-\uFFFF]*(?=\s*(?:\.\s*(?:apply|bind|call)\s*)?\()/,operator:/-[-=]?|\+[+=]?|!=?=?|<<?=?|>>?>?=?|=(?:==?|>)?|&[&=]?|\|[|=]?|\*\*?=?|\/=?|~|\^=?|%=?|\?|\.{3}/}),Prism.languages.javascript["class-name"][0].pattern=/(\b(?:class|interface|extends|implements|instanceof|new)\s+)[\w.\\]+/,Prism.languages.insertBefore("javascript","keyword",{regex:{pattern:/((?:^|[^$\w\xA0-\uFFFF."'\])\s])\s*)\/(\[(?:[^\]\\\r\n]|\\.)*]|\\.|[^/\\\[\r\n])+\/[gimyus]{0,6}(?=\s*($|[\r\n,.;})\]]))/,lookbehind:!0,greedy:!0},"function-variable":{pattern:/[_$a-zA-Z\xA0-\uFFFF][$\w\xA0-\uFFFF]*(?=\s*[=:]\s*(?:async\s*)?(?:\bfunction\b|(?:\((?:[^()]|\([^()]*\))*\)|[_$a-zA-Z\xA0-\uFFFF][$\w\xA0-\uFFFF]*)\s*=>))/,alias:"function"},parameter:[{pattern:/(function(?:\s+[_$A-Za-z\xA0-\uFFFF][$\w\xA0-\uFFFF]*)?\s*\(\s*)(?!\s)(?:[^()]|\([^()]*\))+?(?=\s*\))/,lookbehind:!0,inside:Prism.languages.javascript},{pattern:/[_$a-z\xA0-\uFFFF][$\w\xA0-\uFFFF]*(?=\s*=>)/i,inside:Prism.languages.javascript},{pattern:/(\(\s*)(?!\s)(?:[^()]|\([^()]*\))+?(?=\s*\)\s*=>)/,lookbehind:!0,inside:Prism.languages.javascript},{pattern:/((?:\b|\s|^)(?!(?:as|async|await|break|case|catch|class|const|continue|debugger|default|delete|do|else|enum|export|extends|finally|for|from|function|get|if|implements|import|in|instanceof|interface|let|new|null|of|package|private|protected|public|return|set|static|super|switch|this|throw|try|typeof|undefined|var|void|while|with|yield)(?![$\w\xA0-\uFFFF]))(?:[_$A-Za-z\xA0-\uFFFF][$\w\xA0-\uFFFF]*\s*)\(\s*)(?!\s)(?:[^()]|\([^()]*\))+?(?=\s*\)\s*\{)/,lookbehind:!0,inside:Prism.languages.javascript}],constant:/\b[A-Z](?:[A-Z_]|\dx?)*\b/}),Prism.languages.insertBefore("javascript","string",{"template-string":{pattern:/`(?:\\[\s\S]|\${(?:[^{}]|{(?:[^{}]|{[^}]*})*})+}|[^\\`])*`/,greedy:!0,inside:{interpolation:{pattern:/\${(?:[^{}]|{(?:[^{}]|{[^}]*})*})+}/,inside:{"interpolation-punctuation":{pattern:/^\${|}$/,alias:"punctuation"},rest:Prism.languages.javascript}},string:/[\s\S]+/}}}),Prism.languages.markup&&Prism.languages.markup.tag.addInlined("script","javascript"),Prism.languages.js=Prism.languages.javascript;
+Prism.languages.css.selector={pattern:Prism.languages.css.selector,inside:{"pseudo-element":/:(?:after|before|first-letter|first-line|selection)|::[-\w]+/,"pseudo-class":/:[-\w]+/,class:/\.[-:.\w]+/,id:/#[-:.\w]+/,attribute:{pattern:/\[(?:[^[\]"']|("|')(?:\\(?:\r\n|[\s\S])|(?!\1)[^\\\r\n])*\1)*\]/,greedy:!0,inside:{punctuation:/^\[|\]$/,"case-sensitivity":{pattern:/(\s)[si]$/i,lookbehind:!0,alias:"keyword"},namespace:{pattern:/^(\s*)[-*\w\xA0-\uFFFF]*\|(?!=)/,lookbehind:!0,inside:{punctuation:/\|$/}},attribute:{pattern:/^(\s*)[-\w\xA0-\uFFFF]+/,lookbehind:!0},value:[/("|')(?:\\(?:\r\n|[\s\S])|(?!\1)[^\\\r\n])*\1/,{pattern:/(=\s*)[-\w\xA0-\uFFFF]+(?=\s*$)/,lookbehind:!0}],operator:/[|~*^$]?=/}},"n-th":[{pattern:/(\(\s*)[+-]?\d*[\dn](?:\s*[+-]\s*\d+)?(?=\s*\))/,lookbehind:!0,inside:{number:/[\dn]+/,operator:/[+-]/}},{pattern:/(\(\s*)(?:even|odd)(?=\s*\))/i,lookbehind:!0}],punctuation:/[()]/}},Prism.languages.insertBefore("css","property",{variable:{pattern:/(^|[^-\w\xA0-\uFFFF])--[-_a-z\xA0-\uFFFF][-\w\xA0-\uFFFF]*/i,lookbehind:!0}}),Prism.languages.insertBefore("css","function",{operator:{pattern:/(\s)[+\-*\/](?=\s)/,lookbehind:!0},hexcode:/#[\da-f]{3,8}/i,entity:/\\[\da-f]{1,8}/i,unit:{pattern:/(\d)(?:%|[a-z]+)/,lookbehind:!0},number:/-?[\d.]+/});
 </script>
