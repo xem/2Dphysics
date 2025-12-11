@@ -3,7 +3,7 @@
 <body>
 
 <div>
-<h1>2Dphysics <sup>v.1.0</sup></h1>
+<h1>2Dphysics <sup>v.1.1</sup></h1>
 <br>
 <h3>The World's smallest 2D physics engine in JavaScript including springs and joints</h3>
 <br>
@@ -79,7 +79,7 @@
 <br>
 <br>
 
-<canvas id=a width=800 height=900 style="background:#eee;width:580px;" onclick="start()"></canvas>
+<canvas id=a width=800 height=1200 style="background:#eee;width:580px;" onclick="start()"></canvas>
 <br>
 <br>
 <br>
@@ -199,6 +199,8 @@ shape(
     A: .5,      // angular velocity (default: 0)
     g: [0, -2], // gravity (default: G)
     R: 0,       // enable rotations (default: 1)
+    P: [0, -1], // propulsion (default: [0,0])
+    O: 1,       // custom overlap correction
     d: "red"    // custom data (ex: color)
   }
 );</code></pre>

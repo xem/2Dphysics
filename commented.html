@@ -1,5 +1,5 @@
 <!doctype html>
-<canvas id=a width=800 height=900 style="background:#eee;width:400px;height:450px;"></canvas>
+<canvas id=a width=800 height=1200 style="background:#eee;width:400px"></canvas>
 <script>
 // ==== 2Dphysics ====
 
@@ -11,30 +11,6 @@
 // - joint(type, shape1, anchor1, shape2, anchor2, strength, length)
 // - transform(shape, positionOffset, angleOffset)
 // - run(): run simulation
-
-//  Globals
-// ---------
-
-// Constants
-G = [0,.1];     // Gravity
-O = .4;         // Shapes overlap correction
-E = .01;        // Fixed joints elasticity
-R = 20;         // Resolutions per frame
-
-// Arrays
-H = [];    // shapes (circles, rectangles)
-J = [];    // joints (spring, repulsive, hinge, fixed)
-M = [];    // manifolds (collision info)
-
-// Shapes types
-RECTANGLE = 0;
-CIRCLE = 1;
-
-// Joints types
-SPRING = 0;
-REPULSIVE = 1;
-HINGE = 2;
-FIXED = 3;
 
 //  Globals
 // ---------
@@ -131,6 +107,10 @@ shape = (t, c, m = 1, w = 9, h = 9, o,
     R: 1,               // rotations enabled
     p: [],              // anchorPoints
     N: [],              // noCollisions
+    O,                  // overlap correction
+    sleep: 0,           // sleep timer
+    asleep: false,      // flag
+    P: [0, 0],          // propulsion
     n: [                // normals (rectangles only)
       [0, -1],
       [1, 0],
@@ -213,10 +193,13 @@ transform = (shape, offset, angle, t = 4) => {
     }
   }
   
-  // add offset to the shape's anchor points
+  // move and rotate the shape's anchor points
   for(t in shape.p){
     shape.p[t] = r(p(shape.p[t], offset), shape.c, angle);
   }
+  
+  // rotate propulsion vector
+  shape.P = r(shape.P, [0,0], angle);
 },
 
 // Run the simulation (1 frame)
@@ -247,8 +230,9 @@ run = (
       body2 = H[i];
       
       // for each shape of the outer loop:
-      // reset acceleration and apply gravity
-      body1.F = S(body1.g, body1.m);
+      
+      // reset acceleration and apply gravity + optional propulsion
+      body1.F = S(p(body1.g, body1.P), body1.m);
       
       // skip pairs of static bodies and bodies with fixed/hinge joints
       if((body1.M + body2.M) && !body1.N.includes(i)){
@@ -291,12 +275,12 @@ run = (
               t5 = 0;
               for(t7 = 4; t7--;){
                 
-                // if penetration depth is higher than max depth, save it in t6, save the vertex in t4 and save the support point in t5
+                // if penetration depth is higher than max depth, save it in t6, save the max depth in t4 and save the support point in t5
                 if((t6 = d(s(body2.V[t7], body1.V[t3]), S(body1.n[t3], -1))) > t4){
                   t4 = t6;
                   t5 = {
-                    v: body2.V[t7],  // vertex
-                    d: t6        // depth
+                    v: body2.V[t7],   // vertex
+                    d: t6             // depth
                   }
                 }
               }
@@ -307,11 +291,11 @@ run = (
               // save the manifold t1 if this axis has the smallest penetration depth
               if(t1 && t5.d < t2){
                 t1 = {
-                  d: t2 = t5.d, // depth
-                  n: body1.n[t3],  // normal
-                  c: t5.v,     // contactPoint
-                  A: body1,       // shapeA
-                  B: body2        // shapeB
+                  d: t2 = t5.d,     // depth
+                  n: body1.n[t3],   // normal
+                  c: t5.v,          // contactPoint
+                  A: body1,         // shapeA
+                  B: body2          // shapeB
                 }
               }
             }
@@ -427,7 +411,7 @@ run = (
       t3 = C(t7, j.n);
 
       // compute Baumgarte bias from penetration to reduce positional drift
-      t4 = j.d * O;
+      t4 = j.d * Math.max(body1.O, body2.O);
 
       // normal impulse scalar
       t5 = (-(1 + Math.min(body1.r, body2.r)) * d(t1, j.n) + t4) / (body1.M + body2.M + t2 * t2 * body1.I + t3 * t3 * body2.I);
@@ -635,6 +619,8 @@ draw = (e, r) => {
   c.fillText("MULTI-JOINT LOOP", 70, 630);
   c.fillText("MOVABLE KINEMATIC SHAPE", 305, 630);
   c.fillText("SHAPE WITH NO ROTATION", 560, 630);
+  c.fillText("PROPULSION", 90, 930);
+  c.fillText("STACK STABILITY", 335, 930);
 },
 
 // ============= User code ================
@@ -649,10 +635,11 @@ shape(RECTANGLE, [400, 20], 0, 780, 20);
 shape(RECTANGLE, [400, 300], 0, 780, 20);
 shape(RECTANGLE, [400, 580], 0, 780, 20);
 shape(RECTANGLE, [400, 880], 0, 780, 20);
-shape(RECTANGLE, [20, 450], 0, 20, 880);
-shape(RECTANGLE, [280, 450], 0, 20, 880);
+shape(RECTANGLE, [400, 1180], 0, 780, 20, {f:1,r:0,O:1});
+shape(RECTANGLE, [20, 600], 0, 20, 1180);
+shape(RECTANGLE, [280, 600], 0, 20, 1180);
 shape(RECTANGLE, [540, 450], 0, 20, 880);
-shape(RECTANGLE, [780, 450], 0, 20, 880);
+shape(RECTANGLE, [780, 600], 0, 20, 1180);
 
 // Stress test
 for(i=35;i--;){
@@ -747,12 +734,30 @@ s1 = shape(RECTANGLE, [680, 800], 0, 200, 20, {a: -.6, f: 1, r: .5});
 s2 = shape(RECTANGLE, [730, 700], 10, 30, 50, {d: "#F8F", f: .1, r: .5, R: 0});
 s2 = shape(CIRCLE, [680, 700], 10, 30, 50, {d: "#F88", f: .1, r: .5, R: 0});
 
+// propulsion
+s1 = shape(RECTANGLE, [180, 1150], 1, 20, 20, {P: [0,-.28]});
+s2 = shape(RECTANGLE, [180, 1050], 1, 100, 20, {a: -.1});
+s2 = shape(CIRCLE, [160, 1000], 0, 20, 20, {a: -.2});
+
+// stack
+for(i=5;i--;){
+  shape(RECTANGLE, [360, 920 + (i * 55)], 1, 50, 50, {f:1,r:0,O:1});
+  for(j=i;j--;){
+    //shape(RECTANGLE, [450 - j * 55 + i * 15, 920 + (i * 55)], 1, 50, 50, {f:1,r:0,O:.1});
+  }
+}
+
+shape(RECTANGLE, [650, 1120], 0, 200, 20, {a: -.3});
+//shape(CIRCLE, [690, 950], 100, 30);
+
+
 // Main loop
 time = 0;
 setInterval(() => {
   time++;
   run();
-  transform(r9, [Math.sin(time/70) * .8, 0], -0.01);
+  //transform(r9, [Math.sin(time/70) * .8, 0], -0.01);
+  //transform(r10, [Math.sin(time/70) * .8, 0], 0);
   draw();
 }, 16);
 </script>
