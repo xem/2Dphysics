@@ -620,7 +620,7 @@ draw = (e, r) => {
   c.fillText("MOVABLE KINEMATIC SHAPE", 305, 630);
   c.fillText("SHAPE WITH NO ROTATION", 560, 630);
   c.fillText("PROPULSION", 90, 930);
-  c.fillText("STACK STABILITY", 335, 930);
+  c.fillText("STACK / PYRAMID STABILITY", 335, 930);
 },
 
 // ============= User code ================
@@ -743,11 +743,11 @@ s2 = shape(CIRCLE, [160, 1000], 0, 20, 20, {a: -.2});
 for(i=5;i--;){
   shape(RECTANGLE, [360, 920 + (i * 55)], 1, 50, 50, {f:1,r:0,O:1});
   for(j=i;j--;){
-    //shape(RECTANGLE, [450 - j * 55 + i * 15, 920 + (i * 55)], 1, 50, 50, {f:1,r:0,O:.1});
+    shape(RECTANGLE, [550 - j * 55 + i * 25, 920 + (i * 55)], 1, 50, 50, {f:1,r:0,O:1});
   }
 }
 
-shape(RECTANGLE, [650, 1120], 0, 200, 20, {a: -.3});
+//shape(RECTANGLE, [650, 1120], 0, 200, 20, {a: -.3});
 //shape(CIRCLE, [690, 950], 100, 30);
 
 
