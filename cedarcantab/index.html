@@ -1,0 +1,2358 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOX2DLITE</title>
+</head>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.55.2/phaser.min.js"></script>
+<body>
+    
+    <div>
+        <select id="demolist">
+            <option value="1">1.A Single Box</option>
+            <option value="2">2.Simple Pendulum (Revolute Joint)</option>         
+            <option value="3">3.Varying Friction Coefficients</option>
+            <option value="4">4.Randomized Stacking</option>
+            <option value="5">5.Pyramid Stacking</option>
+            <option value="6">6.A Teeter</option>
+            <option value="7">7.A Suspension Bridge</option>
+            <option value="8">8.Dominos</option>
+            <option value="9">9.Multi-pendulum</option>
+        </select>
+   
+</body>
+</html>
+
+<script>
+function assert(...test) {
+    for (let i = 0; i < test.length; i++)
+        if (!test[i])
+            throw new Error("Assertion failed");
+}
+class Mat22 {
+
+	constructor(angle) {
+
+		if (arguments.length === 1 && typeof arguments[0] === 'number') {
+		
+			const c = Math.cos(angle);
+			const s = Math.sin(angle);
+				
+			this.ex = new Vec2(c, s);
+			this.ey = new Vec2(-s, c);
+
+		}
+		// If there are two arguments and they are both of type vector2, then assign them to the column values of the matrix
+		else if (arguments.length === 2 && arguments[0] instanceof Vec2 && arguments[1] instanceof Vec2)
+		{
+			this.ex = arguments[0];
+			this.ey = arguments[1];
+		}
+		else
+		// Otherwise, just initialize the matrix with zeroes
+		{
+			this.ex = new Vec2();
+			this.ey = new Vec2();
+		}
+	}
+
+	add(m) {
+		return new Mat22(Vec2.Add(this.ex, m.ex), Vec2.Add(this.ey, m.ey));
+	}
+
+	setToAngle(angle)	{
+		var c = Math.cos(angle);
+		var s = Math.sin(angle);
+		this.ex.set(c,s);
+		this.ey.set(-s,c)
+	}
+
+	invert() {
+		var B = new Mat22();
+		var a = this.ex.x;
+		var b = this.ey.x;
+		var c = this.ex.y;
+		var d = this.ey.y;		
+		var det =  (a * d - b * c);
+		assert(det !==0);
+		det = 1 / det;
+		B.ex.set(det * d, -det * c);	
+		B.ey.set(-det * b, det * a)
+
+		return B;
+	}
+	
+	transpose() 	{
+		return new Mat22(new Vec2(this.ex.x, this.ey.x), new Vec2(this.ex.y, this.ey.y));
+	}
+
+	static Add(A, B)	{
+		return new Mat22(A.ex + B.ex, A.ey + B.ey);
+	}
+		
+	static Abs(A)
+	{
+		return new Mat22(Vec2.Abs(A.ex), Vec2.Abs(A.ey));
+	}
+	
+	static MultMM( A, B) {
+		return new Mat22(Mat22.MultMV(A, B.ex), Mat22.MultMV(A, B.ey));
+	}
+
+	static MultMV(A, v) {
+		return new Vec2(A.ex.x * v.x + A.ey.x * v.y, A.ex.y * v.x + A.ey.y * v.y);
+	}
+
+}
+/* A 3-by-3 matrix. Stored in column-major order.
+/**
+ * @classdesc
+ * A Matrix used for display transformations for rendering.
+ *
+ * It is represented like so:
+ *
+ * ```
+ * | a | c | tx |
+ * | b | d | ty |
+ * | 0 | 0 | 1  |
+ * ```
+
+ *
+ * [a=1] - The Scale X value.
+ * [b=0] - The Skew Y value.
+ * [c=0] - The Skew X value.
+ * [d=1] - The Scale Y value.
+ * [tx=0] - The Translate X value.
+ * [ty=0] - The Translate Y value.
+ */
+
+class Mat33 {
+
+	constructor(args) {
+
+		/// Construct this matrix using COLUMNS (NOT ROWS)
+		 if (arguments.length === 3 && arguments[0] instanceof Vec3 && arguments[1] instanceof Vec3 && arguments[2] instanceof Vec3)
+		{
+			this.ex = arguments[0];
+			this.ey = arguments[1];
+            this.ez = arguments[2]
+		}   
+		else
+		// Otherwise, initialize as identity matrix
+		{
+			this.ex = new Vec3(1,0,0);
+			this.ey = new Vec3(0,1,0);
+            this.ez = new Vec3(0,0,1);
+		}
+
+	}
+
+    setIdentity() {
+        this.ex.x = 1.0; this.ey.x = 0.0; this.ez.x = 0.0; 
+        this.ex.y = 0.0; this.ey.y = 1.0; this.ez.y = 0.0;
+        this.ex.z = 0.0; this.ey.y = 1.0; this.ez.z = 1.0
+    }
+	/// Set this matrix to all zeros.
+	setZero() {
+		this.ex.x = 0.0; this.ey.x = 0.0; this.ez.x = 0;
+		this.ex.y = 0.0; this.ey.y = 0.0; this.ez.y = 0
+	}
+
+    scale(x, y) {
+        let scale = new Mat33();
+        scale.ex.x = x;
+        scale.ey.y = y;
+
+        return this.mulMM(scale);
+    }
+
+    rotate(r) {
+        const sin = Math.sin(r);
+        const cos = Math.cos(r);
+
+        let res = new Mat33();
+
+        res.ex.x = cos;
+        res.ex.y = -sin;
+        res.ey.x = sin;
+        res.ey.y = cos;
+
+        return this.mulMM(res);
+    }
+
+    translate(x, y) {
+        let res = new Mat33();
+
+        res.ez.x = x;
+        res.ez.y = y;
+
+        return this.mulMM(res);
+    }
+
+    mulMM(right) {
+        let res = new Mat33();
+
+        res.ex.x = this.ex.x * right.ex.x + this.ey.x * right.ex.y + this.ez.x * right.ex.z;
+        res.ey.x = this.ex.x * right.ey.x + this.ey.x * right.ey.y + this.ez.x * right.ey.z;
+        res.ez.x = this.ex.x * right.ez.x + this.ey.x * right.ez.y + this.ez.x * right.ez.z;
+
+        res.ex.y = this.ex.y * right.ex.x + this.ey.y * right.ex.y + this.ez.y * right.ex.z;
+        res.ey.y = this.ex.y * right.ey.x + this.ey.y * right.ey.y + this.ez.y * right.ey.z;
+        res.ez.y = this.ex.y * right.ez.x + this.ey.y * right.ez.y + this.ez.y * right.ez.z;
+
+        res.ex.z = this.ex.z * right.ex.x + this.ey.z * right.ex.y + this.ez.z * right.ex.z;
+        res.ey.z = this.ex.z * right.ey.x + this.ey.z * right.ey.y + this.ez.z * right.ey.z;
+        res.ez.z = this.ex.z * right.ez.x + this.ey.z * right.ez.y + this.ez.z * right.ez.z;
+
+        return res;  
+    }
+    /// Solve A * x = b, where b is a column vector. This is more efficient
+    /// than computing the inverse in one-shot cases.
+    solve33(b) {
+        let det = b2Dot(ex, b2Cross(ey, ez));
+        if (det != 0.0) {
+            det = 1.0 / det;
+        }
+        var x = new Vec3();
+        x.x = det * b2Dot(b, b2Cross(ey, ez));
+        x.y = det * b2Dot(ex, b2Cross(b, ez));
+        x.z = det * b2Dot(ex, b2Cross(ey, b));
+        return x;
+    }
+
+    ///
+    getInverse22(M) {
+        var a = ex.x, b = ey.x, c = ex.y, d = ey.y;
+        var det = a * d - b * c;
+        if (det != 0.0) {
+            det = 1.0 / det;
+        }
+
+        M.ex.x =  det * d;	M.ey.x = -det * b; M.ex.z = 0.0;
+        M.ex.y = -det * c;	M.ey.y =  det * a; M.ey.z = 0.0;
+        M.ez.x = 0.0; M.ez.y = 0.0; M.ez.z = 0.0;
+    }
+
+    /// Returns the zero matrix if singular.
+    getSymInverse33(M) {
+        var det = b2Dot(this.ex, b2Cross(this.ey, this.ez));
+        if (det != 0.0) {
+            det = 1.0 / det;
+        }
+
+        var a11 = ex.x, a12 = ey.x, a13 = ez.x;
+        var a22 = ey.y, a23 = ez.y;
+        var a33 = ez.z;
+
+        M.ex.x = det * (a22 * a33 - a23 * a23);
+        M.ex.y = det * (a13 * a23 - a12 * a33);
+        M.ex.z = det * (a12 * a23 - a13 * a22);
+
+        M.ey.x = M.ex.y;
+        M.ey.y = det * (a11 * a33 - a13 * a13);
+        M.ey.z = det * (a13 * a12 - a11 * a23);
+
+        M.ez.x = M.ex.z;
+        M.ez.y = M.ey.z;
+        M.ez.z = det * (a11 * a22 - a12 * a12);
+    }
+
+	mulVec2(right, out) {
+   
+      if (out === undefined) out = new Vec2();
+      // turn the vec2 into homegenous coordinates by adding a 1 in z-coordinate
+      out.x = this.ex.x * right.x + this.ey.x * right.y + this.ez.x;
+      out.y = this.ex.y * right.x + this.ey.y * right.y + this.ez.y;
+
+      return out;
+
+    }
+	
+}
+class Vec2 {	
+	constructor(x =0, y=0) {
+	this.x = x;
+	this.y = y;
+	}		
+/*
+	add(v) {
+		this.x += v.x;
+		this.y += v.y;
+		return this;
+	}
+*/
+	addi(v) {
+		return new Vec2(this.x + v.x, this.y + v.y)
+	}
+
+	addScaled(vec, k) {
+		this.x += k*vec.x;
+		this.y += k*vec.y;
+		return this;
+	}
+
+	clone() {
+        return new Vec2(this.x, this.y);
+    }
+
+	copy(v) {
+		this.x = v.x;
+		this.y = v.y;
+		return this;
+	}
+	cross (src)    {
+        return this.x * src.y - this.y * src.x;
+    }
+
+	dot(v) {
+		return this.x * v.x + this.y * v.y;
+	}
+	length() {
+        var x = this.x;
+        var y = this.y;
+        return Math.sqrt(x * x + y * y);
+    }
+	negate() {
+		this.x *= -1;
+		this.y *= -1;
+		return this
+	}
+
+	scale(s) {
+		this.x *=s;
+		this.y *=s;
+		return this;
+	}
+	scalei(s) {
+		return new Vec2(this.x * s, this.y * s)
+	}
+
+	subi(v) {
+	
+		return new Vec2(this.x - v.x, this.y - v.y);
+	};
+
+	subtract(v) {
+		this.x -= v.x;
+		this.y -= v.y;
+		return this;
+	}
+	subtractScaled(vec, k) {
+		this.x -= k*vec.x;
+		this.y -= k*vec.y;
+		return this;
+	}
+
+	set(x,y) {
+		this.x = x;
+		this.y = y;
+		return this;
+	}
+	
+	to(vec) {
+		return new Vec2(vec.x - this.x, vec.y - this.y)
+	}
+
+	static Abs(vec) {
+		return new Vec2(Math.abs(vec.x), Math.abs(vec.y))
+	}
+	
+	static Add(a, b, out) {
+		assert(arguments[0] instanceof Vec2 && arguments[1] instanceof Vec2)
+		if (out === undefined) out = new Vec2();
+		out.x = a.x + b.x;
+		out.y = a.y + b.y;
+		return out;	
+	}
+
+	static AddScaled(a, b, s, out) {
+		assert(arguments[0] instanceof Vec2 && arguments[1] instanceof Vec2 && typeof arguments[2] === 'number')
+		if (out === undefined) out = new Vec2();
+		out.x = a.x + b.x * s;
+		out.y = a.y + b.y * s;
+		return out;
+	}
+
+	static Scale(a, b, out) {
+		if (out === undefined) out = new Vec2();
+		if (arguments[0] instanceof Vec2 && typeof arguments[1] === 'number') {
+			out.x = a.x * b;
+			out.y = a.y * b;
+			return out;
+		}
+		else if (arguments[1] instanceof Vec2 && typeof arguments[0] === 'number') {
+			out.x = b.x * a;
+			out.y = b.y * a;
+			return out;
+		}
+		else throw new Error("Invalid Parameter");
+	}
+
+	static Cross(a, b, out) {
+		if (arguments[0] instanceof Vec2 && arguments[1] instanceof Vec2) {
+			return a.x * b.y - a.y * b.x;
+		}
+		else if (arguments[0] instanceof Vec2 && typeof arguments[1] === 'number') {
+			if (out === undefined) out = new Vec2();
+			out.x = b * a.y;
+			out.y = -b * a.x
+			return out;
+		}
+		else if (typeof arguments[0] === 'number' && arguments[1] instanceof Vec2) {
+			if (out === undefined) out = new Vec2();
+			out.x = -a * b.y;
+			out.y = a * b.x
+			return out;
+		}
+		else throw new Error("Invalid Parameter");
+	}
+
+	static SkewCross(s, a, out) {
+		if (out === undefined) out = new Vec2();
+		out.x = -s * a.y;
+		out.y = s * a.x;
+		return out;
+	//	return new Vector2(-s * a.y, s * a.x);
+	}
+	static CrossVV( a, b ) {
+		return a.x * b.y - a.y * b.x;
+	};
+	static Negate(v, out) {
+		if (out === undefined) out = new Vec2();
+		out.x = -v.x;
+		out.y = -v.y;
+
+		return out;
+	}
+
+	static Normalize(v, out) {
+		if (out === undefined) out = new Vec2();
+        var x = v.x;
+        var y = v.y;
+        var len = x * x + y * y;
+
+        if (len > 0)    {
+            len = 1 / Math.sqrt(len);
+
+            out.x = x * len;
+            out.y = y * len;
+        }
+
+        return out;
+    }
+	
+	static RightPerp(v, out) {
+		assert(arguments[0] instanceof Vec2)
+		if (out === undefined) out = new Vec2();
+		out.x = v.y;
+		out.y = -v.x;
+		return out;
+	}
+	static LeftPerp(v, out) {
+		assert(arguments[0] instanceof Vec2)
+		if (out === undefined) out = new Vec2();
+		out.x = -v.y;
+		out.y = v.x;
+		return out;
+	}
+	static Rotate(M, v, out) {
+		if (out === undefined) out = new Vec2();
+		const x = v.x;
+		const y = v.y;
+		out.x = M.ex.x * x + M.ey.x * y;
+		out.y = M.ex.y * x + M.ey.y * y;
+
+		return out;
+
+	}
+
+	static Subtract(a, b, out) {
+		assert(arguments[0] instanceof Vec2 && arguments[1] instanceof Vec2)
+		if (out === undefined) out = new Vec2();
+		out.x = a.x - b.x;
+		out.y = a.y - b.y;
+
+		return out;
+	};
+
+
+	static InverseRotate(M, v, out) {
+		if (out === undefined) out = new Vec2();
+		const x = v.x;
+		const y = v.y;
+		out.x = M.ex.x * x + M.ex.y * y;
+		out.y = M.ey.x * x + M.ey.y * y;
+
+		return out;
+	}
+
+	static RotateAndTranslate(M, T, v, out) {
+		if (out === undefined) out = new Vec2();
+		const x = v.x;
+		const y = v.y;
+		out.x = M.ex.x * x + M.ey.x * y + T.x;
+		out.y = M.ex.y * x + M.ey.y * y + T.y;
+
+		return out;
+
+	} 
+
+	static InverseRotateAndTranslate(M, T, v, out) {
+		if (out === undefined) out = new Vec2();
+		const x = v.x - T.x;
+		const y = v.y - T.y;
+		out.x = M.ex.x * x + M.ex.y * y;
+		out.y = M.ey.x * x + M.ey.y * y;
+
+		return out;
+
+	} 
+	static RotateAbsolute(M, v, out) {
+		if (out === undefined) out = new Vec2();
+		const x = v.x;
+		const y = v.y;
+		const c1x = Math.abs(M.ex.x);
+		const c1y = Math.abs(M.ex.y);
+		const c2x = Math.abs(M.ey.x);
+		const c2y = Math.abs(M.ey.y);
+
+		out.x = c1x * x + c2x * y;
+		out.y = c1y * x + c2y * y;
+
+		return out;
+	}
+
+	static InverseRotateAbsolute(M, v, out) {
+		if (out === undefined) out = new Vec2();
+		const x = v.x;
+		const y = v.y;
+		const c1x = Math.abs(M.ex.x);
+		const c1y = Math.abs(M.ex.y);
+		const c2x = Math.abs(M.ey.x);
+		const c2y = Math.abs(M.ey.y);
+		out.x = c1x * x + c1y * y;
+		out.y = c2x * x + c2y * y;
+//		return new Vec2(A.ex.x * v.x + A.ey.x * v.y, A.ex.y * v.x + A.ey.y * v.y);
+		return out;
+	}
+
+
+}
+class Vec3 {
+
+    constructor(x = 0, y = 0, z = 0) {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+
+    }
+    
+	setZero() {
+        this.x = 0.0; this.y = 0.0; this.z = 0.0; 
+    }
+
+    /// Add a vector to this vector.
+	add(v) {
+        this.x += v.x;
+        this.y += v.y;
+        this.z += v.z || 0;
+
+        return this;
+    }
+    
+    addScalar(s) {
+        this.x += s;
+        this.y += s;
+        this.z += s;
+
+        return this;
+    }
+    addScaled(v, scale) {
+        this.x += v.x * scale;
+        this.y += v.y * scale;
+        this.z += v.z * scale || 0;
+
+        return this;
+    }
+
+  /// Perform the cross product on two vectors.
+    cross (v) {
+        var ax = this.x;
+        var ay = this.y;
+        var az = this.z;
+        var bx = v.x;
+        var by = v.y;
+        var bz = v.z;
+
+        this.x = ay * bz - az * by;
+        this.y = az * bx - ax * bz;
+        this.z = ax * by - ay * bx;
+
+        return this;
+    }
+
+    distance (v) {
+        var dx = v.x - this.x;
+        var dy = v.y - this.y;
+        var dz = v.z - this.z || 0;
+
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+    
+    distanceSq (v) {
+        var dx = v.x - this.x;
+        var dy = v.y - this.y;
+        var dz = v.z - this.z || 0;
+
+        return dx * dx + dy * dy + dz * dz;
+    }
+
+    dot(v) {
+        return this.x * v.x + this.y * v.y + this.z * v.z;
+    }
+
+    /// Multiply this vector by a scalar.
+    scale (scale) {
+        if (isFinite(scale)) {
+            this.x *= scale;
+            this.y *= scale;
+            this.z *= scale;
+        }
+        else
+        {
+            this.x = 0;
+            this.y = 0;
+            this.z = 0;
+        }
+
+        return this;
+    }
+    /// Subtract a vector from this vector.
+
+    subtract (v) {
+        this.x -= v.x;
+        this.y -= v.y;
+        this.z -= v.z || 0;
+
+        return this;
+    }
+   
+    /// Negate this vector.
+    negate () {
+        this.x = -this.x;
+        this.y = -this.y;
+        this.z = -this.z;
+
+        return this;
+    }
+    
+    static Cross(a, b, out) {
+		if (arguments[0] instanceof Vec3 && arguments[1] instanceof Vec3) {
+            if (out === undefined) out = new Vec3();
+            out.x = a.y * b.z - a.z * b.y;
+            out.y = a.z * b.x - a.x * b.z;
+            out.z = a.x * b.y - a.y * b.x;
+			return out;
+		}
+		
+		else throw new Error("Invalid Parameter");
+	}
+
+};
+class Camera {
+	
+	constructor(x = 0, y = 0, r = 0) {
+	 
+        this.position = new Vec2(x, y);
+        this.rotation = r;
+     
+    }
+
+}
+
+const DrawFlags = {
+  e_none: 0,
+  e_shapeBit: 0x0001, ///< draw shapes
+  e_jointBit: 0x0002, ///< draw joint connections
+  e_aabbBit: 0x0004, ///< draw axis aligned bounding boxes
+  e_pairBit: 0x0008, ///< draw broad-phase pairs
+  e_centerOfMassBit: 0x0010, ///< draw center of mass frame
+  e_all: 0xffff
+};
+
+class Draw {
+ 
+  constructor() {
+    
+    this.camera = new Camera();
+    this.cameraTransform = new Mat33();
+    this.projectionTransform = new Mat33();
+    this.viewportTransform = new Mat33();
+
+    this.vpc;
+    this.panX;
+    this.panY;
+    this.scaleX;
+    this.scaleY;
+
+    this.drawContactPoints = true;
+    this.drawContactNormal = true;
+    this.drawContactImpulse = true;
+    this.drawFrictionImpulse = true;
+
+    this.drawFlags = DrawFlags.e_all;
+
+    this.setViewport(width, height); // set default viewport same as canvas in pixels
+    this.setOrtho(-width/2, width/2,-height/2, height/2);
+    
+    this.calculateVPC();
+
+  }
+  
+  convertScreenToWorld(ps) {
+    var pw = new Vec2();
+    pw.x = (ps.x - this.panX) / this.scaleX;
+    pw.y = (ps.y - this.panY) / this.scaleY;
+    return pw;
+  }
+
+  setCamera(x,y) {
+    
+    this.camera.position.set(x,y); //ie move camera up by x, y in world units (= meters)
+    // create camera transform matrix - just negative position
+    this.cameraTransform.ez.x = -x;
+    this.cameraTransform.ez.y = -y;
+
+    // recalculate VPC matrix
+    this.calculateVPC(); 
+
+  }
+
+  // Create a 2D orthographic projection matrix
+  setOrtho(left, right, bottom, top) {
+
+    // Scale
+    this.projectionTransform.ex.x = 2.0 / (right - left);
+    this.projectionTransform.ey.y = 2.0 / (top - bottom);
+
+    // Translation
+    this.projectionTransform.ez.x = -(right + left) / (right - left);
+    this.projectionTransform.ez.y = -(top + bottom) / (top - bottom);
+    
+    // recalculate VPC matrix
+    this.calculateVPC();
+
+  }
+
+  // Create a viewport transform matrix
+  setViewport(width, height, xStart = 0, yStart = 0) {
+
+    // Scale
+    this.viewportTransform.ex.x = width / 2.0;
+    this.viewportTransform.ey.y = -height / 2.0; // minus is required to flip the y-scale
+
+    // Translation
+    this.viewportTransform.ez.x = xStart + width / 2.0;
+    this.viewportTransform.ez.y = yStart + height / 2.0;
+
+  }
+
+  calculateVPC() {
+
+    this.vpc = this.viewportTransform.mulMM(this.projectionTransform).mulMM(this.cameraTransform);
+    this.panX= this.vpc.ez.x;
+    this.panY= this.vpc.ez.y,
+    this.scaleX= this.vpc.ex.x;
+    this.scaleY= this.vpc.ey.y;
+  
+  }
+
+  clearFlags(flags) {
+    this.drawFlags &= ~flags;
+  }
+
+  clear() {
+    graphics.clear();   
+    graphics.translateCanvas(this.panX, this.panY);
+    graphics.scaleCanvas(this.scaleX, this.scaleY);
+  }
+
+  pushTransform(position, rotation) {
+    graphics.save() ;      
+    graphics.translateCanvas(position.x, position.y);
+    graphics.rotateCanvas(rotation);
+  }
+
+  popTransform() {
+    graphics.restore();
+  }
+
+  drawBox(b, color) {
+   
+    graphics.lineStyle(1/this.scaleX, color)
+    graphics.strokeRectShape(b);
+   
+  }
+  
+  drawSolidBox(b, color) {
+    graphics.fillStyle(color, 0.5);
+    graphics.fillRectShape(b);
+    graphics.lineStyle(1/this.scaleX, color);
+    graphics.strokeRectShape(b);
+
+  }
+  drawPolygon(vertices, vertexCount, color) {
+
+    graphics.lineStyle(1/this.scaleX, color);
+  
+    graphics.beginPath();
+    graphics.moveTo(vertices[0].x, vertices[0].y);
+
+    for (var i = 1; i < vertexCount; i++) {
+      graphics.lineTo(vertices[i].x, vertices[i].y);
+    }      
+
+    graphics.lineTo(vertices[0].x, vertices[0].y);   
+    graphics.strokePath();
+
+  }
+
+  drawSolidPolygon(vertices, vertexCount, color) {
+
+    graphics.fillStyle(color, 0.5);
+   
+    this.beginPath();
+    this.moveTo(vertices[0].x, vertices[0].y);
+
+    for (var i = 1; i < vertexCount; i++) {
+      this.lineTo(vertices[i].x, vertices[i].y);
+    }
+    this.lineTo(vertices[0].x, vertices[0].y);
+    this.fillPath();
+
+    graphics.lineStyle(1/this.scaleX, color, 1);
+  }
+
+  drawCircle(p, size, color = '0xffffff') {
+    graphics.lineStyle(1/this.scaleX,color); 
+    graphics.strokeCircle(p.x, p.y, size)
+  }
+
+  drawSolidCircle(p, size, color = '0xffffff') {
+    graphics.fillStyle(color, 0.5);
+    graphics.fillCircle(p.x, p.y, size);
+    graphics.lineStyle(1/this.scaleX, color, 1); 
+    graphics.strokeCircle(p.x, p.y, size);
+  }
+
+  drawSegment(p1, p2, color = '0xffffff') {
+    assert(p1 instanceof  Vec2 && p2 instanceof Vec2);
+    graphics.lineStyle(1/this.scaleX, color)
+    graphics.beginPath();
+    graphics.moveTo(p1.x, p1.y);
+    graphics.lineTo(p2.x, p2.y);
+    graphics.strokePath();
+  }
+
+ 
+  drawTransform(xformScale) {
+    
+    graphics.beginPath();
+    graphics.lineStyle(1/this.scaleX, '0xff0000'); // draw x-axis in red
+    graphics.lineBetween(0, 0, xformScale, 0);
+   
+    graphics.lineStyle(1/this.scaleX, '0x00ff00'); // draw y-axis in green
+    graphics.lineBetween(0, 0,0, xformScale);
+   
+ };
+
+  drawPoint(p, size, color = '0xffffff') {
+    assert(p instanceof  Vec2);
+    graphics.fillStyle(color);
+    graphics.fillRect(p.x - size/2, p.y - size/2, size, size);
+
+  }
+
+  drawVector(p, v, color = '0xffffff', arrowLength = 0.5, arrowSize = 0.03) {
+  
+    assert(p instanceof  Vec2 && v instanceof Vec2);
+    graphics.lineStyle(1/this.scaleX, color)
+    graphics.lineBetween(p.x, p.y, p.x + v.x*arrowLength, p.y + v.y*arrowLength);
+    let n = Vec2.Normalize(new Vec2(-v.y, v.x)).scale(4 * arrowSize);
+    const nv = Vec2.Normalize(v);
+    arrowSize *= 4;
+    graphics.lineBetween(p.x + v.x*arrowLength + n.x - nv.x * arrowSize, p.y + v.y*arrowLength + n.y - nv.y * arrowSize, p.x + v.x*arrowLength, p.y + v.y*arrowLength);
+    graphics.lineBetween(p.x + v.x*arrowLength - n.x - nv.x * arrowSize, p.y + v.y*arrowLength - n.y - nv.y * arrowSize, p.x + v.x*arrowLength, p.y + v.y*arrowLength);
+
+  }
+  
+}
+
+class Body extends Phaser.Geom.Rectangle {
+	
+	constructor( x, y, r = 0, w, h, m = 1) {
+	  
+	  super(-w/2, -h/2, w, h);
+		  
+	  this.position = new Vec2(x,y);
+	  this.rotation = r;
+	  this.linearVelocity = new Vec2();
+	  this.angularVelocity = 0;
+	  this.force = new Vec2();/** The current force */
+	  this.torque = 0;/** The current torque */    
+	  this.friction = 0.2;
+  
+	  this.setMass(m);
+  
+	  this.id; // this is an addition to the original Erin Catto code, to create the body pair key for arbiters Map list
+	  
+	  }
+  
+	  setMass(m) {
+		  this.mass = m;
+		  if (this.mass < Number.MAX_VALUE)
+		  {
+			  this.invMass = 1 / this.mass;
+			  this.I = this.mass * (this.width * this.width + this.height * this.height) / 12;
+			  this.invI = 1 / this.I;
+		  }
+		  else
+		  {
+			  this.invMass = 0;
+			  this.I = Number.MAX_VALUE;
+			  this.invI = 0;
+		  }
+	  }
+	  isStatic() {
+		return (this.invMass === 0);
+	  }
+  }
+class Contact {
+  
+  constructor() {
+
+    this.position = new Vec2();
+    this.normal = new Vec2();   
+    this.separation; // float
+    this.feature; // feature
+    
+    
+ 
+
+  }
+
+}
+const EdgeNumber = {
+    NO_EDGE: 0,
+    EDGE1: 1,
+    EDGE2: 2,
+    EDGE3: 3,
+    EDGE4: 4
+  };
+  
+
+class Edges {
+
+    constructor ()    {
+        this.inEdge1 = EdgeNumber.NO_EDGE;
+        this.outEdge1 = EdgeNumber.NO_EDGE;
+        this.inEdge2 = EdgeNumber.NO_EDGE;
+        this.outEdge2 = EdgeNumber.NO_EDGE;
+    }
+}
+const JointType = {
+	e_unknownJoint: 0,
+  e_revoluteJoint: 1,
+  e_distanceJoint: 3,
+}
+
+class Joint {
+  
+	constructor(type) {
+		this.type = type;
+		this.body1;
+		this.body2;
+		this.r1 = new Vec2();
+		this.r2 = new Vec2();
+
+		this.beta = 0.2; // Coefficient of position correction (Positional error feedback factor)
+        this.gamma = 0.0; // Coefficient of Softness (Force feedback factor)
+   
+		this.softness = 0.0;
+		  
+	}
+	
+	static  getRelativeVelocity(b1, b2, r1, r2) {
+
+		var b1v = b1.linearVelocity.addi(Vec2.Cross(b1.angularVelocity, r1));
+		var b2v = b2.linearVelocity.addi(Vec2.Cross(b2.angularVelocity, r2));
+		return b2v.subi(b1v);
+
+	} 
+
+	setBetaAndGamma(frequency, dampingRatio, mass) {
+  
+	  // frequency in radians
+	  let omega = 2 * Math.PI * frequency;
+  
+	  // damping coefficient
+	  let d = 2 * mass * dampingRatio * omega; 
+	
+	  // spring stifness
+	  let k = mass * omega * omega; 
+	  let h = 1/60;
+  
+	  // magic formulas
+	  this.beta = h * k / (d + h * k);
+	  this.gamma = 1.0 / (d + h * k) ;
+  
+	}
+  
+	getNaturalFrequency( frequency) {
+		  return 2 * Math.PI * frequency;
+	  }
+	
+	getFrequency( naturalFrequency) {
+		  return naturalFrequency / (2 * Math.PI);
+	  }
+	
+	getDampingCoefficient(dampingRatio, naturalFrequency, mass) {
+	  return 2.0 * mass * dampingRatio * naturalFrequency;	
+	}
+  
+	getSpringStiffness( mass,  naturalFrequency) {
+		  return mass * naturalFrequency * naturalFrequency;
+	  }
+  
+  }
+class RevoluteJoint extends Joint {
+
+	constructor() {  
+		super(JointType.e_revoluteJoint);
+
+		this.body1;
+		this.body2;
+
+		this.M = new Mat22();
+
+		this.localAnchor1 = new Vec2();
+		this.localAnchor2 = new Vec2();
+	
+		this.r1 = new Vec2();
+		this.r2 = new Vec2();
+		this.bias = new Vec2();
+		this.P = new Vec2();
+	
+	}
+	
+	set(b1, b2, anchor)	{
+		
+		this.body1 = b1;
+		this.body2 = b2;
+	
+		var Rot1 = new Mat22(this.body1.rotation);
+		var Rot2 = new Mat22(this.body2.rotation);
+	
+		this.localAnchor1 = Vec2.InverseRotateAndTranslate(Rot1, this.body1.position, anchor);
+		this.localAnchor2 = Vec2.InverseRotateAndTranslate(Rot2, this.body2.position, anchor);
+	}
+	
+	preStep(inv_dt) {
+
+		var body1 = this.body1;
+		var body2 = this.body2;
+
+		// Pre-compute anchors, mass matrix, and bias.
+		var Rot1 = new Mat22(this.body1.rotation);
+		var Rot2 = new Mat22(this.body2.rotation);
+	
+		Vec2.Rotate(Rot1, this.localAnchor1, this.r1);
+		Vec2.Rotate(Rot2, this.localAnchor2, this.r2);
+		// deltaV = deltaV0 + K * impulse
+		// invM = [(1/m1 + 1/m2) * eye(2) - skew(r1) * invI1 * skew(r1) - skew(r2) * invI2 * skew(r2)]
+		//      = [1/m1+1/m2     0    ] + invI1 * [r1.y*r1.y -r1.x*r1.y] + invI2 * [r1.y*r1.y -r1.x*r1.y]
+		//        [    0     1/m1+1/m2]           [-r1.x*r1.y r1.x*r1.x]           [-r1.x*r1.y r1.x*r1.x]
+		var K1 = new Mat22();
+		K1.ex.x = body1.invMass + body2.invMass;		K1.ey.x = 0.0;
+		K1.ex.y = 0.0;								K1.ey.y = body1.invMass + body2.invMass;
+	
+		var K2 = new Mat22();
+		K2.ex.x =  body1.invI * this.r1.y * this.r1.y;		K2.ey.x = -body1.invI * this.r1.x * this.r1.y;
+		K2.ex.y = -body1.invI * this.r1.x * this.r1.y;		K2.ey.y =  body1.invI * this.r1.x * this.r1.x;
+	
+		var K3 = new Mat22();
+		K3.ex.x =  body2.invI * this.r2.y * this.r2.y;		K3.ey.x = -body2.invI * this.r2.x * this.r2.y;
+		K3.ex.y = -body2.invI * this.r2.x * this.r2.y;		K3.ey.y =  body2.invI * this.r2.x * this.r2.x;
+
+		var K = K1.add(K2).add(K3);
+    
+		this.softness = this.gamma * inv_dt;
+		K.ex.x += this.softness;
+		K.ey.y += this.softness;
+	
+		this.M = K.invert();
+	
+		var p1 = body1.position.addi(this.r1);
+		var p2 = body2.position.addi(this.r2);
+		var dp = p2.subi(p1);
+	
+		if (world.positionCorrection) {
+//			this.bias = Vec2.MulSV(-this.biasFactor, dp.mul(inv_dt));
+			this.bias = dp.scalei(inv_dt).scale(-this.beta);
+		}
+		else
+		{
+			this.bias.set(0.0, 0.0);
+		}
+	
+		if (world.warmStarting)
+		{
+			// Apply accumulated impulse.
+			/*
+			this.body1.linearVelocity = this.body1.linearVelocity.subi(this.P.scalei(this.body1.invMass));
+			this.body1.angularVelocity -= this.body1.invI * Vec2.Cross(this.r1, this.P);
+	
+			this.body2.linearVelocity = this.body2.linearVelocity.addi(this.P.scalei(this.body2.invMass));
+			this.body2.angularVelocity += this.body2.invI * Vec2.Cross(this.r2, this.P);
+		*/
+		this.applyImpulse(this.P)
+		}
+		else
+		{
+			this.P.set(0.0, 0.0);
+		}
+	}
+	
+	solve() {
+
+		var dv = Joint.getRelativeVelocity(this.body1, this.body2, this.r1, this.r2);
+		var impulse = Mat22.MultMV(this.M, this.bias.subi(dv).subi(this.P.scalei(this.softness)) );
+	
+		this.applyImpulse(impulse)
+	
+		this.P = this.P.addi(impulse);
+	}
+
+	applyImpulse(impulse) {
+		this.body1.linearVelocity = this.body1.linearVelocity.subi(impulse.scalei(this.body1.invMass)) ;
+		this.body1.angularVelocity -= this.body1.invI * Vec2.Cross(this.r1, impulse);
+	
+		this.body2.linearVelocity = this.body2.linearVelocity.addi(impulse.scalei(this.body2.invMass));
+		this.body2.angularVelocity += this.body2.invI * Vec2.Cross(this.r2, impulse);
+	}
+}
+class TimeStep {
+
+    constructor(dt = 1/60) {
+
+        /** The elapsed time */
+        this.dt = dt;
+
+        /** The inverse elapsed time */
+        this.invdt = 1.0 / dt;
+
+        /** The last elapsed time */
+        this.dt0 = this.dt;
+            
+        /** The last inverse elapsed time */
+        this.invdt0 = this.invdt;
+
+        /** The elapsed time ratio from the last to the current */
+        this.dtRatio = 1.0;
+
+    }
+	
+	/**
+	 * Updates the current {@link TimeStep} using the new elapsed time.
+	 * @param dt in delta time in seconds; must be greater than zero
+	 */
+ 
+    update( dt) {
+
+        if (dt <= 0.0)
+			throw new Error("dt", dt, ValueOutOfRangeException.MUST_BE_GREATER_THAN, 0.0);
+		
+		this.dt0 = this.dt;
+		this.invdt0 = this.invdt;
+		this.dt = dt;
+		this.invdt = 1.0 / dt;
+		this.dtRatio = this.invdt0 * dt;
+	}
+	
+	/**
+	 * Returns the elapsed time since the last time step in seconds.
+	 */
+	  getDeltaTime() {
+		return this.dt;
+	}
+	
+	/**
+	 * Returns the inverse of the elapsed time (in seconds) since the last time step.
+	 * @return double
+	 */
+	  getInverseDeltaTime() {
+		return this.invdt;
+	}
+	
+	/**
+	 * Returns the ratio of the last elapsed time to the current
+	 * elapsed time.
+	 * <p>
+	 * This is used to cope with a variable time step.
+	 * @return double
+	 */
+	  getDeltaTimeRatio() {
+		return this.dtRatio;
+	}
+	
+	/**
+	 * Returns the previous frame's elapsed time in seconds.
+	 * @return double
+	 */
+	  getPrevousDeltaTime() {
+		return this.dt0;
+	}
+
+	/**
+	 * Returns the previous frame's inverse elapsed time (in seconds).
+	 * @return double
+	 */
+	  getPreviousInverseDeltaTime() {
+		return this.invdt0;
+	}
+
+}
+class World {
+  
+  constructor(options = {}) {
+  
+    this.gravity = options.gravity || new Vec2(0,-9.8);
+    this.accumulateImpulses = true;
+    this.warmStarting = true;
+    this.positionCorrection = true;
+
+    this.bodies = [];
+    this.joints = [];
+    this.arbiters = new Map();
+
+    this.iterations = options.iterations || 10;
+    
+    this.idCounter = 0;
+
+    this.showContacts = true;
+
+    this.color = new Phaser.Display.Color(); // working variable to set drawing color
+
+  }
+
+  addBody(body) {
+    this.idCounter++;
+    body.id = this.idCounter;
+    this.bodies.push(body);
+    return body;
+  }
+
+  addJoint(joint) {
+    this.joints.push(joint);
+    return joint;
+  }
+  
+  broadPhase() {
+
+    // O(n^2) broad-phase
+    for (let i = 0; i< this.bodies.length - 1; i++) {
+      var bi = this.bodies[i];
+
+      for (let j = i+1; j < this.bodies.length; j++)       {
+ 
+        var bj = this.bodies[j];
+
+        if (bi.invMass == 0 && bj.invMass == 0) {
+          continue;
+        }
+        let bodyA, bodyB;	
+        if (bi.id > bj.id)
+            {
+              bodyA = bi;
+              bodyB = bodyB;
+            }
+            else
+            {
+              bodyB = bi;
+              bodyA = bj;
+            }
+        var key = ArbiterKey(bodyA, bodyB);
+        var contacts = findContacts(bodyA, bodyB);
+        if (contacts.numContacts > 0) {
+          var newArb = new Manifold(contacts.contacts, contacts.numContacts, bodyA, bodyB);
+          var oldArb = this.arbiters.get(key);
+         
+          if (oldArb) {
+            newArb.update(oldArb);
+          }
+          this.arbiters.set(key, newArb);
+        }
+        else 
+        {
+          this.arbiters.delete(key)
+        }
+      }
+    }
+
+  }
+  
+  step(dt) {
+
+    var inv_dt = (dt > 0.0) ? 1.0 / dt : 0.0;
+
+    // Determine overlapping bodies and update contact points.
+    this.broadPhase();
+    
+    // Integrate forces.
+    this.bodies.forEach(b => {
+      if (b.invMass !== 0) { 	
+        b.linearVelocity.addScaled(this.gravity, dt);
+        b.angularVelocity += b.torque * b.invI * dt;
+      }
+    })
+
+  	// perform pre-steps
+		for (const arb of this.arbiters.values())
+		{
+			arb.preStep( inv_dt );
+		}
+    for (let i = 0; i < this.joints.length; i++)
+		{
+			this.joints[i].preStep(inv_dt);	
+		}
+		
+		// perform iterations
+		for (let i = 0; i < this.iterations; i++) 		{
+			for (const arb of this.arbiters.values())			{
+				arb.solve();
+			}
+      for (let j = 0; j < this.joints.length; j++) {
+				this.joints[j].solve();
+			}
+		}
+
+    // integrate velocities
+    for (let i = 0; i < this.bodies.length; i++)
+    {
+        let b = this.bodies[i];
+        
+        b.position.addScaled(b.linearVelocity, dt);
+        b.rotation += b.angularVelocity * dt;
+        b.force.set(0, 0);
+        b.torque = 0;
+        
+      }
+    }
+
+    clear() {
+      this.bodies = [];
+      this.joints = [];
+      this.arbiters.clear();
+      
+      this.idCounter = 0;
+    }
+
+    setDebugDraw(debugDraw) {
+      this.debugDraw = debugDraw;   
+    }
+
+    drawDebugData() {
+    
+      var color = this.color;
+
+      this.debugDraw.clear();
+ 
+      var flags = this.debugDraw.drawFlags;
+    
+      if (flags & DrawFlags.e_shapeBit) {
+
+        this.bodies.forEach(b=> {		 
+
+          this.debugDraw.pushTransform(b.position, b.rotation); 
+
+          if (b.isStatic()) {
+            color.setGLTo(0.5, 0.9, 0.5);
+          }
+          else {
+            color.setGLTo(0.9,0.7,0.7);
+          }
+        
+          this.drawShape(b, color.color);
+          if (flags & DrawFlags.e_centerOfMassBit) {
+            this.debugDraw.drawTransform(0.5);
+          }
+          this.debugDraw.popTransform();
+        })
+  
+      }
+      if (flags & DrawFlags.e_jointBit) {
+        this.joints.forEach(j => {
+          this.drawJoint(j);
+        })
+  
+      }    
+
+      if (this.debugDraw.drawContactPoints) {
+
+        const k_impulseScale = 0.05;  
+
+        this.arbiters.forEach(a => {
+       
+          for (let i = 0; i < a.numContacts; i++) {
+            var vc = a.constraints[i];
+            var cp = vc.contactPoint;
+
+            color.setGLTo(0.3, 0.95, 0.3);
+            this.debugDraw.drawPoint(cp.position, 0.2, color.color);
+
+            if (this.debugDraw.drawContactNormal) 
+            {
+              color.setGLTo(0.9,0.9,0.9)
+              this.debugDraw.drawVector(cp.position, cp.normal, color.color)
+            }
+            else if (this.debugDraw.drawContactImpulse) 
+            {
+              color.setGLTo(0.9,0.9,0.3)
+              var p1 = cp.position;
+              var p2 = Vec2.AddScaled(p1, cp.normal, vc.normalImpulse * k_impulseScale);
+              this.debugDraw.drawSegment(p1, p2, color.color);
+            }
+            if (this.debugDraw.drawFrictionImpulse) 
+            {
+              var tangent = Vec2.LeftPerp(cp.normal);
+              var p1 = cp.position;
+              var p2 = Vec2.AddScaled(p1, tangent, vc.tangentImpulse );
+              color.setGLTo(0.9,0.9,0.3)
+              this.debugDraw.drawSegment(p1, p2, color.color);
+            }
+          }
+        })
+    
+      }
+    }
+
+    drawShape(b, color) {
+      this.debugDraw.drawSolidBox(b,color)
+    }
+
+    drawJoint(joint) {
+
+      this.color.setGLTo(0.5, 0.8, 0.8);
+      var color = this.color.color;
+     
+      var b1 = joint.body1;
+      var b2 = joint.body2;
+    
+      var R1 = new Mat22(b1.rotation);
+      var R2 = new Mat22(b2.rotation);
+    
+      var x1 = b1.position;
+      var p1 = Vec2.Add(x1, Mat22.MultMV(R1, joint.localAnchor1));
+      var x2 = b2.position;
+      var p2 = Vec2.Add(x2, Mat22.MultMV(R2, joint.localAnchor2));  
+      
+      switch (joint.type) {
+        
+        case JointType.e_revoluteJoint: {
+          this.debugDraw.drawSegment(x1, p1, color);
+          this.debugDraw.drawSegment(x2, p2, color);
+          break;
+        }
+
+        case JointType.e_distanceJoint: {
+          this.debugDraw.drawSegment(p1, p2, color);
+        }
+
+        default: {
+          this.debugDraw.drawSegment(x1, p1, color); 
+          this.debugDraw.drawSegment(p1, p2, color);        
+          this.debugDraw.drawSegment(x2, p2, color);  
+        }
+
+      }
+     
+    }
+}
+function ArbiterKey (b1, b2) {
+  //Cantor's enumeration of pairs
+    var x, y;
+    if (b1.id < b2.id) {
+      x = b1.id; y = b2.id;
+    }
+    else {
+      x = b2.id; y = b1.id;
+    }
+
+    return ((x + y)*(x + y + 1)/2) + y
+
+}
+function ClipSegmentToLine(vOut, vIn, normal, offset, clipEdge) {
+		
+	// Start with no output points
+	var numOut = 0;
+
+	// Calculate the distance of end points to the line
+	var distance0 = normal.dot(vIn[0].v) - offset;
+	var distance1 = normal.dot(vIn[1].v) - offset;
+
+	// If the points are behind the plane
+	if (distance0 <= 0.0) {
+		vOut[numOut] = vIn[0];
+		numOut++;
+	};
+	if (distance1 <= 0.0) {
+		vOut[numOut] = vIn[1];
+		numOut++;
+	};
+
+	// If the points are on different sides of the plane
+	if (distance0 * distance1 < 0.0) {
+		// Find intersection point of edge and plane
+		var interp = distance0 / (distance0 - distance1);
+	//	vOut[numOut] = new ClipVertex();
+		vOut[numOut].v = Vec2.AddScaled(vIn[0].v, vIn[1].v.clone().subtract(vIn[0].v) , interp);
+		if (distance0 > 0.0)		{
+			vOut[numOut].fp = vIn[0].fp;
+			vOut[numOut].fp.e.inEdge1 = clipEdge;
+			vOut[numOut].fp.e.inEdge2 = EdgeNumber.NO_EDGE;
+		}
+		else
+		{
+			vOut[numOut].fp = vIn[1].fp;
+			vOut[numOut].fp.e.outEdge1 = clipEdge;
+			vOut[numOut].fp.e.outEdge2 = EdgeNumber.NO_EDGE;
+		}
+		numOut++;
+	}
+
+	return numOut;
+
+}
+
+function ComputeIncidentEdge(c, h, pos, Rot, normal) {
+
+	// The normal is from the reference box. Convert it to the incident boxe's frame and flip sign.
+
+	var RotT = Rot.transpose();
+	//		var n = -(RotT * normal);
+	var n = Mat22.MultMV(RotT, normal).negate(); // Vec2
+	var nAbs = Vec2.Abs(n); // Vec2
+
+	if (nAbs.x > nAbs.y) {
+		if (Math.sign(n.x) > 0.0) {
+			c[0].v.set(h.x, -h.y);
+			c[0].fp.e.inEdge2 = EdgeNumber.EDGE3;
+			c[0].fp.e.outEdge2 = EdgeNumber.EDGE4;
+
+			c[1].v.set(h.x, h.y);
+			c[1].fp.e.inEdge2 = EdgeNumber.EDGE4;
+			c[1].fp.e.outEdge2 = EdgeNumber.EDGE1;
+		}
+		else
+		{
+			c[0].v.set(-h.x, h.y);
+			c[0].fp.e.inEdge2 = EdgeNumber.EDGE1;
+			c[0].fp.e.outEdge2 = EdgeNumber.EDGE2;
+
+			c[1].v.set(-h.x, -h.y);
+			c[1].fp.e.inEdge2 = EdgeNumber.EDGE2;
+			c[1].fp.e.outEdge2 = EdgeNumber.EDGE3;
+		}
+	}
+	else
+	{
+		if (Math.sign(n.y) > 0.0) {
+			c[0].v.set(h.x, h.y);
+			c[0].fp.e.inEdge2 = EdgeNumber.EDGE4;
+			c[0].fp.e.outEdge2 = EdgeNumber.EDGE1;
+
+			c[1].v.set(-h.x, h.y);
+			c[1].fp.e.inEdge2 = EdgeNumber.EDGE1;
+			c[1].fp.e.outEdge2 = EdgeNumber.EDGE2;
+		}
+		else
+		{
+			c[0].v.set(-h.x, -h.y);
+			c[0].fp.e.inEdge2 = EdgeNumber.EDGE2;
+			c[0].fp.e.outEdge2 = EdgeNumber.EDGE3;
+
+			c[1].v.set(h.x, -h.y);
+			c[1].fp.e.inEdge2 = EdgeNumber.EDGE3;
+			c[1].fp.e.outEdge2 = EdgeNumber.EDGE4;
+		}
+	}
+	c[0].v = Vec2.Add(pos, Mat22.MultMV(Rot, c[0].v));
+	c[1].v = Vec2.Add(pos, Mat22.MultMV(Rot, c[1].v));
+
+}
+class ClipVertex {
+    
+    constructor () {
+        this.v = new Vec2()
+        this.fp = new FeaturePair();
+    }
+
+}
+const Axis = {
+
+	FACE_A_X: 0,
+	FACE_A_Y: 1,
+	FACE_B_X: 2,
+	FACE_B_Y: 3
+
+}
+	
+function findContacts(bodyA, bodyB) {
+	var contacts = [new Contact(), new Contact()]; // hold up to 2 contact points
+	var numContacts = collide(contacts, bodyA, bodyB);
+	return {contacts: contacts, numContacts: numContacts};
+}
+
+
+
+function collide(contacts, bodyA, bodyB)  {
+	  
+	var hA = new Vec2(bodyA.width*0.5, bodyA.height*0.5);
+	var hB = new Vec2(bodyB.width*0.5, bodyB.height*0.5);
+
+	var posA = bodyA.position.clone();
+	var posB = bodyB.position.clone();
+
+	var RotA = new Mat22(bodyA.rotation);
+	var RotB = new Mat22(bodyB.rotation);
+	
+	var RotAT = RotA.transpose();
+	var RotBT = RotB.transpose();
+	
+	var dp = posB.clone().subtract(posA);
+	
+	var dA = Mat22.MultMV(RotAT, dp);
+	var dB = Mat22.MultMV(RotBT, dp);
+	var C = Mat22.MultMM(RotAT, RotB);
+	var absC = Mat22.Abs(C);
+	var absCT = absC.transpose();
+	// Box A faces
+	
+	var faceA = Vec2.Abs(dA).subtract(hA).subtract(Mat22.MultMV(absC, hB));
+
+	if (faceA.x > 0.0 || faceA.y > 0.0) {
+		return false
+	};
+
+	// Box B faces
+	var faceB = Vec2.Abs(dB).subtract(Mat22.MultMV(absCT, hA)).subtract(hB);
+
+	if (faceB.x > 0.0 || faceB.y > 0.0) {
+		return false
+	};
+
+	// if got to here, there is no separating axis = there is overlap
+
+	// Find best axis
+	var axis;
+	var separation;
+	var normal = new Vec2();
+
+	// Box A faces
+	axis = Axis.FACE_A_X;
+	separation = faceA.x;
+	normal = (dA.x > 0.0) ? RotA.ex.clone() : RotA.ex.clone().negate();
+
+	const relativeTol = 0.95;
+	const absoluteTol = 0.01;
+	
+	if (faceA.y > relativeTol * separation + absoluteTol * hA.y) {
+		axis = Axis.FACE_A_Y;
+		separation = faceA.y;
+		normal = (dA.y > 0.0) ? RotA.ey.clone() : RotA.ey.clone().negate();
+	}
+
+	// Box B faces
+	if (faceB.x > relativeTol * separation + absoluteTol * hB.x)	{
+		axis = Axis.FACE_B_X;
+		separation = faceB.x;
+		normal = (dB.x > 0.0) ? RotB.ex.clone() : RotB.ex.clone().negate();
+	}
+
+	if (faceB.y > relativeTol * separation + absoluteTol * hB.y)	{
+		axis = Axis.FACE_B_Y;
+		separation = faceB.y;
+		normal = (dB.y > 0.0) ? RotB.ey.clone() : RotB.ey.clone().negate();
+	}
+
+	
+	// Setup clipping plane data based on the separating axis
+	var frontNormal, sideNormal;
+	var incidentEdge = [new ClipVertex(), new ClipVertex()];
+	var front, negSide, posSide;
+	var negEdge, posEdge;
+
+	// Compute the clipping lines and the line segment to be clipped.
+	switch (axis) {
+    
+		case Axis.FACE_A_X:
+		{
+			frontNormal = normal.clone();
+			front = posA.dot(frontNormal) + hA.x;
+			sideNormal = RotA.ey.clone();
+			var side = posA.dot(sideNormal);
+			negSide = -side + hA.y;
+			posSide =  side + hA.y;
+			negEdge = EdgeNumber.EDGE3;
+			posEdge = EdgeNumber.EDGE1;
+			ComputeIncidentEdge(incidentEdge, hB, posB, RotB, frontNormal);
+			break;
+		}
+		case Axis.FACE_A_Y:
+		{
+			frontNormal = normal.clone();
+			front = posA.dot(frontNormal) + hA.y;
+			sideNormal = RotA.ex.clone();
+			var side = posA.dot(sideNormal);
+			negSide = -side + hA.x;
+			posSide =  side + hA.x;
+			negEdge = EdgeNumber.EDGE2;
+			posEdge = EdgeNumber.EDGE4;
+			ComputeIncidentEdge(incidentEdge, hB, posB, RotB, frontNormal);
+			break;
+
+		}
+
+		case Axis.FACE_B_X:
+		{
+			frontNormal = normal.clone().negate();
+			front = posB.dot(frontNormal) + hB.x;
+			sideNormal = RotB.ey.clone();
+			var side = posB.dot(sideNormal);
+			negSide = -side + hB.y;
+			posSide =  side + hB.y;
+			negEdge = EdgeNumber.EDGE3;
+			posEdge = EdgeNumber.EDGE1;
+			ComputeIncidentEdge(incidentEdge, hA, posA, RotA, frontNormal);
+			break;
+		}		
+
+		case Axis.FACE_B_Y:
+		{
+			frontNormal = normal.clone().negate();
+			front = posB.dot(frontNormal) + hB.y;
+			sideNormal = RotB.ex.clone();
+			var side = posB.dot(sideNormal);
+			negSide = -side + hB.x;
+			posSide =  side + hB.x;
+			negEdge = EdgeNumber.EDGE2;
+			posEdge = EdgeNumber.EDGE4;
+			ComputeIncidentEdge(incidentEdge, hA, posA, RotA, frontNormal);
+			break;
+		}
+
+	}
+
+	// clip other face with 5 box planes (1 face plane, 4 edge planes)
+
+	var clipPoints1 = [new ClipVertex(), new ClipVertex()]; // temp holder for 2 vertices to be clipped
+	var clipPoints2 = [new ClipVertex(), new ClipVertex()];
+	var np;
+
+	// Clip to box side 1
+	np = ClipSegmentToLine(clipPoints1, incidentEdge, sideNormal.clone().negate(), negSide, negEdge);
+	
+	if (np < 2)
+		return false;
+
+	// Clip to negative box side 1
+	np = ClipSegmentToLine(clipPoints2, clipPoints1,  sideNormal, posSide, posEdge);
+
+	if (np < 2)
+		return false;
+
+	// Now clipPoints2 contains the clipping points.
+	// Due to roundoff, it is possible that clipping removes all points.
+
+	var numContacts = 0;
+
+	for (let i = 0; i < 2; i++) {
+
+		let separation = frontNormal.dot(clipPoints2[i].v) - front;
+
+		if (separation <= 0) {
+			contacts[numContacts].separation = separation;
+			contacts[numContacts].normal = normal.clone();
+			// slide contact point onto reference face (easy to cull)
+			contacts[numContacts].position = Vec2.AddScaled(clipPoints2[i].v, frontNormal, -separation);
+			contacts[numContacts].feature = clipPoints2[i].fp;
+			if (axis == Axis.FACE_B_X || axis == Axis.FACE_B_Y) contacts[numContacts].feature.flip();
+			numContacts++;
+		}
+	}
+	
+	return numContacts;
+  
+}
+class ContactSolver {
+	
+	constructor(manifold, contactPoint) {
+
+		this.manifold = manifold;
+		this.contactPoint = contactPoint;
+		this.normalImpulse = 0; // float - accumulated normal impulse
+		this.tangentImpulse = 0; // float - accumulated tangent impulse
+		this.rA = new Vec2(); 
+		this.rB = new Vec2(); 
+   
+		this.normalMass; // float
+		this.tangentMass;	 // float
+		this.velocityBias; // float.
+	}
+
+	preStep(inv_dt) {
+	
+		const allowedPenetration = 0.01;
+		const biasFactor = 0.2;
+
+		const manifold = this.manifold;
+
+		const mA = manifold.bodyA.invMass;
+		const mB = manifold.bodyB.invMass;
+		const iA = manifold.bodyA.invI;
+		const iB = manifold.bodyB.invI;
+		const cA = manifold.bodyA.position;
+		const cB = manifold.bodyB.position;
+
+		const c = this.contactPoint;
+		
+		Vec2.Subtract(c.position, cA, this.rA); // radii from COM to contact
+		Vec2.Subtract(c.position, cB, this.rB); // radii from COM to contact
+		
+		// Precompute normal mass, tangent mass, and bias.		
+		let rnA = Vec2.Cross(this.rA, c.normal);
+		let rnB = Vec2.Cross(this.rB, c.normal);
+		let kNormal = mA + mB + iA * rnA * rnA + iB * rnB * rnB;
+
+		this.normalMass = kNormal > 0 ? 1 / kNormal : 0;
+		
+		let tangent = Vec2.Cross(c.normal, 1); // vector2
+		
+		let rtA = Vec2.Cross(this.rA, tangent);
+		let rtB = Vec2.Cross(this.rB, tangent);
+		let kTangent = mA + mB + iA * rtA * rtA + iB * rtB * rtB;
+
+		this.tangentMass = kTangent > 0 ? 1 / kTangent : 0;
+		
+		this.velocityBias = -biasFactor * inv_dt * Math.min(0, c.separation + allowedPenetration);
+		
+
+		if (world.accumulateImpulses) {
+			// Apply normal + friction impulse
+			let P = c.normal.clone().scale(this.normalImpulse).addScaled(tangent, this.tangentImpulse); // vector2
+		
+			manifold.bodyA.linearVelocity.addScaled(P, -mA);
+			manifold.bodyA.angularVelocity -= iA * Vec2.Cross(this.rA, P);
+			
+			manifold.bodyB.linearVelocity.addScaled(P, mB);
+			manifold.bodyB.angularVelocity += iB * Vec2.Cross(this.rB, P);
+
+		}
+		
+	};
+	
+	solve() {
+
+		const manifold = this.manifold;
+		
+		const mA = manifold.bodyA.invMass;
+		const mB = manifold.bodyB.invMass;
+		const iA = manifold.bodyA.invI;
+		const iB = manifold.bodyB.invI;
+
+		var c = this.contactPoint;
+
+		// Solve tangent constraints first because non-penetration is more important
+		// than friction.
+
+		var normal = c.normal;
+		var tangent = Vec2.Cross(normal, 1.0);
+
+		// Relative velocity at contact
+
+        let vrB = Vec2.Add(manifold.bodyB.linearVelocity, Vec2.Cross(manifold.bodyB.angularVelocity, this.rB));
+        let vrA = Vec2.Add(manifold.bodyA.linearVelocity, Vec2.Cross(manifold.bodyA.angularVelocity, this.rA))
+		let dv = Vec2.Subtract(vrB, vrA)
+		
+		// Compute tangent force			
+		var vt = dv.dot(tangent);
+		var lambda = this.tangentMass * (-vt);
+
+		// Clamp friction
+		var maxFriction = manifold.friction * this.normalImpulse;
+		let newImpulse = Phaser.Math.Clamp(this.tangentImpulse + lambda, -maxFriction, maxFriction);
+		lambda = newImpulse - this.tangentImpulse;
+		this.tangentImpulse = newImpulse;
+
+		// Apply contact impulse
+		let P = Vec2.Scale(tangent, lambda) ;
+
+		manifold.bodyA.linearVelocity.addScaled(P, -mA);
+		manifold.bodyA.angularVelocity -= iA * Vec2.Cross(this.rA, P);
+
+		manifold.bodyB.linearVelocity.addScaled(P, mB);
+		manifold.bodyB.angularVelocity += iB * Vec2.Cross(this.rB, P);
+
+		// Solve normal constraints
+		// Relative velocity at contact
+		dv = Vec2.Subtract(Vec2.Add(manifold.bodyB.linearVelocity, Vec2.Cross(manifold.bodyB.angularVelocity, this.rB)), Vec2.Add(manifold.bodyA.linearVelocity, Vec2.Cross(manifold.bodyA.angularVelocity, this.rA)))
+
+		// Compute normal impulse  
+		var vn = dv.dot(c.normal);
+
+		lambda = this.normalMass * (-vn + this.velocityBias); // incremental impulse
+
+		// Clamp the accumulated impulse
+		newImpulse = Math.max(this.normalImpulse + lambda, 0);
+
+		lambda = newImpulse - this.normalImpulse;
+		this.normalImpulse = newImpulse;
+
+		// Apply contact impulse
+		P = Vec2.Scale(c.normal, lambda);
+
+		manifold.bodyA.linearVelocity.addScaled(P, -mA);
+		manifold.bodyA.angularVelocity -= iA * Vec2.Cross(this.rA, P);
+
+		manifold.bodyB.linearVelocity.addScaled(P, mB);
+		manifold.bodyB.angularVelocity += iB * Vec2.Cross(this.rB, P);
+
+	}
+		
+}
+class FeaturePair {
+    constructor() {
+        this.e = new Edges();
+        this.value = 0;
+    }
+
+    flip() {
+        const edges = this.e;
+
+        const tempIn = edges.inEdge1;
+        const tempOut = edges.outEdge1;
+
+        edges.inEdge1 = edges.inEdge2;
+        edges.inEdge2 = tempIn;
+
+        edges.outEdge1 = edges.outEdge2;
+        edges.outEdge2 = tempOut;
+    }
+
+    getKey(){
+		return this.e.inEdge1 + (this.e.outEdge1 << 8) + (this.e.inEdge2 << 16) + (this.e.outEdge2 << 24);
+	};
+
+    equals(fp) {
+		return this.getKey() === fp.getKey();
+	}
+    
+}
+
+
+class Manifold {
+
+	constructor(contacts, numContacts, bodyA, bodyB) {
+
+		this.bodyA = bodyA;
+		this.bodyB = bodyB;
+		
+		this.contacts = contacts; // hold up to 2 contact points
+		this.numContacts = numContacts;
+		this.constraints = [];
+
+		this.friction = Math.sqrt(bodyA.friction * bodyB.friction);
+
+		for (let i = 0; i < this.numContacts; i++) {
+			const c = this.contacts[i];
+			this.constraints.push(new ContactSolver(this, c))
+		}
+
+		this.K = new Mat22();
+	};
+
+	update(oldArb) {
+		
+		for (let i = 0; i < this.numContacts; i++) {
+			let cNew = this.contacts[i];
+			let j = 0;
+			for (; j < oldArb.numContacts; j++) {
+				const cOld = this.contacts[j]
+				if (cNew.feature.equals(cOld.feature)) {					
+					break;
+				}
+			}
+			
+			if (j < oldArb.numContacts) {
+				this.constraints[i].normalImpulse = oldArb.constraints[j].normalImpulse;
+				this.constraints[i].tangentImpulse = oldArb.constraints[j].tangentImpulse;	
+			}
+			
+		}
+				
+	};
+	
+	preStep(inv_dt) {
+
+		for (let i = 0; i < this.numContacts; i++) {	
+			
+			this.constraints[i].preStep(inv_dt);
+			
+		}
+	};
+	
+	solve() {
+	
+		for (let i = 0; i < this.numContacts; i++) {		
+			this.constraints[i].solve();
+			
+		}
+
+	}
+
+	
+}
+function Demo1() {
+   // a single box
+   const b =new Body(0,-0.5*20,0,100,20,Number.MAX_VALUE); // ground
+   world.addBody(b);
+   world.addBody(new Body(0,4,0,1,1,200))
+}
+
+function Demo2(){
+   // A simple pendulum  
+   var b1 =new Body(0,-0.5*20,0,100,20,Number.MAX_VALUE); // ground
+   world.addBody(b1);
+ 
+   var b2 = new Body(9, 11,0,1, 1, 100)
+   world.addBody(b2);
+ 
+   var j = world.addJoint(new RevoluteJoint());
+   j.set(b1, b2, new Vec2(0, 11));
+}
+
+
+function Demo3() {
+   // Varying friction coefficients 
+   b1 =new Body(0,-0.5*20,0,100,20,Number.MAX_VALUE); // ground
+   world.addBody(b1);
+
+   b2 = new Body(-2,11,0,13,0.25,Number.MAX_VALUE)
+   b2.rotation = -0.25;
+   world.addBody(b2);
+
+   b3 = new Body(5.25, 9.5, 0, 0.25, 1, Number.MAX_VALUE);
+   world.addBody(b3);
+
+   b4 = new Body(2.0, 7.0, 0, 13, 0.25, Number.MAX_VALUE);
+   b4.rotation = 0.25;
+   world.addBody(b4);
+
+   b5 = new Body(-5.25, 5.5, 0, 0.25, 1, Number.MAX_VALUE);
+   world.addBody(b5);
+
+   b6 = new Body(-2.0, 3.0, 0, 13, 0.25, Number.MAX_VALUE);
+   b6.rotation = -0.25;
+   world.addBody(b6);
+
+   let friction = [0.75, 0.5, 0.35, 0.1, 0.0];
+   for (let i = 0; i < 5; i++) {
+      const b = new Body(-7.5 + 2.0 * i, 14.0, 0, 0.5, 0.5, 25);
+      b.friction = friction[i];
+      world.addBody(b);
+   }
+}
+
+function Demo4() {
+  // a vertical stack
+  world.addBody(new Body(0,-0.5*20,0,100,20,Number.MAX_VALUE));// ground
+ 
+  for (let i = 0; i < 7; i++)
+	{  
+    const x = Phaser.Math.FloatBetween(-0.1, 0.1);
+    const b = new Body(x, 3 + 1.5 * i, 0, 1,1,1)
+    world.addBody(b);
+	}
+}
+
+function Demo5() {
+ 
+   // A pyramid
+  const b =new Body(0, -0.5*20, 0, 100, 20, Number.MAX_VALUE); // ground
+  world.addBody(b);
+
+  let x = new Vec2(-6.0, 0.75);
+  let y = new Vec2();
+
+  for (let i = 0; i < 12; i++)
+  {
+    y = x.clone();
+    for (let j = i; j < 12; j++)
+    {
+      const b = new Body(y.x, y.y, 0, 1, 1, 10);
+      world.addBody(b);
+      Vec2.Add(y, new Vec2(1.125, 0.0),y);
+    }
+
+    Vec2.Add(x, new Vec2(0.5625, 2.0),x) ;
+  }
+}
+
+function Demo6() {
+   // A teeter
+   const b1 = new Body(0, -0.5*20, 0, 600, 20, Number.MAX_VALUE);  // ground
+   world.addBody(b1); 
+
+
+   const b2 = new Body(0,1,0,12,0.25,100); // see-saw
+   world.addBody(b2);
+
+   const b3 = new Body(-5, 2, 0, 0.5, 0.5, 25);
+   world.addBody(b3)
+
+   const b4 = new Body(-5.5, 2, 0, 0.5, 0.5, 25)
+   world.addBody(b4)
+
+   const b5 = new Body(5.5, 15, 0, 1, 1, 100)
+   world.addBody(b5);
+
+   const j = world.addJoint(new RevoluteJoint());
+   j.set(b1, b2, new Vec2(0,1))
+
+}
+
+function Demo7() {
+   // A suspension bridge
+   const numPlanks = 15;
+   var mass = 50.0;
+
+   const b = new Body(0, -0.5*20, 0, 100, 20, Number.MAX_VALUE); // ground
+   world.addBody(b)
+
+   for (let i = 0; i < numPlanks; i++)
+   {
+   const b = new Body(-8.5 + 1.25 * i, 5, 0, 1, 0.25);
+   world.addBody(b);
+   }
+
+   // Tuning
+   var timeStep = 1/60
+   var frequencyHz = 2.0;
+   var dampingRatio = 0.7;
+
+   for (let i = 0; i < numPlanks; i++)
+   {
+      var j = world.addJoint(new RevoluteJoint());
+      j.set(world.bodies[i], world.bodies[i+1], new Vec2(-9.125 + 1.25 * i, 5));
+      j.setBetaAndGamma(frequencyHz, dampingRatio, mass)
+
+   }
+
+
+   var j = world.addJoint(new RevoluteJoint());
+   j.set(world.bodies[numPlanks], b, new Vec2(-9.125 + 1.25 * numPlanks, 5));
+   j.setBetaAndGamma(frequencyHz, dampingRatio, mass)
+
+
+}
+
+function Demo8() {
+   // Dominos
+   const b1 = new Body(0, -0.5*20, 0, 100, 20, Number.MAX_VALUE)
+   world.addBody(b1)
+
+   b = new Body(-1.5, 10, 0, 12, 0.5, Number.MAX_VALUE); // mid-air platform for dominos
+   world.addBody(b);
+   
+   for (let i = 0; i < 10; i++) // create 10 domino pieces
+   {
+      const b = new Body(-6 + 1 * i, 12.5, 0, 0.2, 2, 10)
+   b.friction = 0.02; // this is different from the original implementation
+      world.addBody(b);
+   }
+
+   b = new Body(1, 6, 0, 14, 0.5, Number.MAX_VALUE);
+   b.rotation = 0.3;
+   world.addBody(b);
+
+   const b2 = new Body(-7,4,0,0.5,3, Number.MAX_VALUE)
+   world.addBody(b2);
+
+   const b3 = new Body(-0.9, 1, 0, 12, 0.25, 20)
+   world.addBody(b3);
+
+   j = world.addJoint(new RevoluteJoint());
+   j.set(b1, b3, new Vec2(-2.0, 1.0));
+   
+   const b4 = new Body(-10, 15, 0, 0.5, 0.5, 10)
+   world.addBody(b4);
+
+   
+   j = world.addJoint(new RevoluteJoint());
+   j.set(b2, b4, new Vec2(-7.0, 15.0));
+   
+   const b5 = new Body(6.0, 2.5, 0, 2, 2, 20);
+   b5.friction = 0.1;
+   world.addBody(b5);
+   
+   j = world.addJoint(new RevoluteJoint());
+   j.set(b1, b5, new Vec2(6.0, 2.6));
+   
+
+   const b6 = new Body(6.0, 3.6, 0,2,0.2,10);
+   world.addBody(b6);
+
+   j = world.addJoint(new RevoluteJoint())
+   j.set(b5, b6, new Vec2(7.0, 3.5));
+
+}
+
+function Demo9() {
+   //A multi-pendulum
+   const b =new Body(0,-0.5*20,0,100,20,Number.MAX_VALUE)
+   world.addBody(b);
+
+   var b1 = b;
+   var mass = 10.0;
+
+   // Tuning
+   var timeStep = 1/60;
+   var frequencyHz = 4.0;
+   var dampingRatio = 0.7;
+
+   let y = 12;
+
+   for (let i = 0; i < 15; i++)
+   {
+      const x = new Vec2(0.5 + i, y);    
+      const b = new Body(x.x, x.y, 0,0.75, 0.25, mass);
+      world.addBody(b);
+      var j = world.addJoint(new RevoluteJoint());
+      j.set(b1, b, new Vec2(i, y));
+      j.setBetaAndGamma(frequencyHz, dampingRatio, mass)
+      world.addJoint(j);
+
+      b1 = b;
+      
+   }
+
+}
+
+const config = {  
+  scene: {
+    create: create,
+    update: update
+
+  },
+  width: 1280,
+  height: 720,
+};
+
+
+const width = config.width;
+const height = config.height;
+
+const game = new Phaser.Game(config);
+
+var graphics;
+var step = new TimeStep();
+
+function create() {
+    
+  graphics = this.add.graphics();
+  const zoom = 10.0;
+  const pan_y = 8.0;
+  const aspect = width / height;
+  const clipWidth = 2 * zoom * aspect; 
+  const clipHeight = 2 * zoom;
+
+  debugDraw = new Draw();
+  debugDraw.setCamera(0, pan_y);
+  debugDraw.setOrtho(-clipWidth / 2.0, clipWidth / 2.0, -clipHeight / 2.0, clipHeight / 2.0);
+
+  world = new World();
+  world.setDebugDraw(debugDraw);
+  let demoIndex = 1;
+
+  InitDemo(demoIndex)
+  
+  let demoList = document.getElementById('demolist');
+  demoList.addEventListener('change', (e) => {
+    let target = e.target;
+    demoIndex = parseInt(target.value);
+    InitDemo(demoIndex);   
+     
+  });
+  
+}
+
+
+function update(t, dt) {
+
+  step.update(dt*0.001);  
+  world.step(step.dt);
+  world.drawDebugData()
+
+}
+
+
+function InitDemo(index) {
+  world.clear();
+  
+  switch (index) {
+      case 1: {
+          Demo1();
+          break;
+      }
+      case 2: {
+          Demo2();
+          break;
+      }
+      case 3: {
+          Demo3();
+          break;
+      }
+      case 4: {
+          Demo4();
+          break;
+      }
+      case 5: {
+          Demo5();
+          break;
+      }
+      case 6: {
+          Demo6();
+          break;
+      }
+      case 7: {
+          Demo7();
+          break;
+      }
+      case 8: {
+          Demo8();
+          break;
+      }
+      case 9: {
+        Demo9();
+        break;
+      }
+      case 10: {
+       Demo10();
+       break; 
+      }
+    }
+}
+
+</script>

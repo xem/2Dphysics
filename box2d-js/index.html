@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto|Sriracha">
+  <link rel="stylesheet" href="css/main.css">
+</head>
+
+<body>
+
+<h1>Box2D Testbed</h1>
+
+<div id="canvas">
+  <canvas id="glCanvas" width="640" height="360"></canvas>
+</div>
+
+<script src="dist/gl-matrix-min.js"></script>
+
+<script src="js/b2Math.js"></script>
+<script src="js/b2RigidBody.js"></script>
+<script src="js/b2Manifold.js"></script>
+<script src="js/b2Joint.js"></script>
+<script src="js/b2Collide.js"></script>
+<script src="js/b2World.js"></script>
+
+<script src="js/webgl.js"></script>
+<script src="js/main.js"></script>
+
+<p>
+  Use the buttons below or press <kbd>1</kbd> to <kbd>5</kbd> to switch between different demos.
+</p>
+
+<script>
+  document.addEventListener('keydown', function(event) {
+    let x = event.which || event.keyCode;
+    switch (x) {
+    case 49: demo = initDemo1(); break;
+    case 50: demo = initDemo2(); break;
+    case 51: demo = initDemo3(); break;
+    case 52: demo = initDemo4(); break;
+    case 53: demo = initDemo5(); break;
+    }
+  });
+</script>
+<button onclick="demo = initDemo1()">Collision</button>
+<button onclick="demo = initDemo2()">Teeter</button>
+<button onclick="demo = initDemo3()">Friction</button>
+<button onclick="demo = initDemo4()">Stack</button>
+<button onclick="demo = initDemo5()">Pyramid</button>
+
+</body>
+</html>
