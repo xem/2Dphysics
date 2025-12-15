@@ -46,7 +46,7 @@ n=v=>S(v,1/l(v)),               // normalize
 l=v=>d(v,v)**.5,                // length
 d=(x,y)=>x[0]*y[0]+x[1]*y[1],   // dot
 p=(x,y)=>[x[0]+y[0],x[1]+y[1]], // add
-s=(x,y)=>p(x,S(y,-1)),          // sub
+s=(x,y)=>[x[0]-y[0],x[1]-y[1]], // sub
 S=(x,y)=>[x[0]*y,x[1]*y],       // scale
 C=(x,y)=>x[0]*y[1]-x[1]*y[0],   // cross
 r = (x, y, c) => (              // rotate (point, origin, angle)
@@ -61,6 +61,10 @@ x = (shape, penetration) => (   // scalar cross (shape x penetration)
     shape.A * penetration[0]
   ]
 ),
+CrossVec2Number = (v, n) => {
+  return [n * v.y, -n * v.x];
+}
+copy = (v) => [v.x, v.y];
 
 // Apply normal impulse (linear + angular)
 // params: shapeA, shapeB, force, normal, aCrossN, bCrossN, doLinear
@@ -507,6 +511,8 @@ run = (
       }
     }
   }
+  
+  
 
   // integrate shapes
   for(j of H){
@@ -691,7 +697,6 @@ c1 = shape(CIRCLE, [665, 465], 100, 30, 30);
 a2 = anchor(c1, [-20,10]);
 joint(HINGE, r1, a1, c1, a2);
 
-
 // Loop
 s1b = shape(RECTANGLE, [410+510-780, 70+300+300], 0, 200, 30);
 s2 = shape(CIRCLE, [360+510-780, 90+300+300], 10, 30);
@@ -723,7 +728,6 @@ j6 = joint(FIXED, s6, a6b, s7, a7a);
 j7 = joint(HINGE, s7, a7b, s5, a5b);
 
 // Kinematic
-
 for(i=35;i--;){
   shape(i%2, [345 - i/2 + (i % 8) * 25, 655+ (i / 8) * 40], 1, i%2?10:20,20);
 }
@@ -753,7 +757,7 @@ for(i=5;i--;){
 
 // Main loop
 time = 0;
-setInterval(() => {
+interval = setInterval(() => {
   time++;
   run();
   //transform(r9, [Math.sin(time/70) * .8, 0], -0.01);
