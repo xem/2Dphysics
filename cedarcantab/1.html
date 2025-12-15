@@ -1,0 +1,811 @@
+<!doctype html>
+<select id="demolist">
+	<option value="1">A Single Box</option>			 
+	<option value="3">Varying Friction Coefficients</option>
+	<option value="4" selected>Randomized Stacking</option>
+	<option value="5">Pyramid Stacking</option>
+</select>
+<br>
+<br>
+<canvas width=800 height=600 id=canvas style="border:1px solid #000"></canvas>
+<script>
+
+// Setup
+c = canvas.getContext("2d");
+
+// Helper
+clamp = (n, min, max) => Math.min(Math.max(n, min), max);
+
+// 2x2 matrix
+class Mat22 {
+	constructor(a, b){
+    //console.log(a, b);
+		if(b === undefined){
+			const c = Math.cos(a);
+			const s = Math.sin(a);
+			this.ex = new Vec2(c, s);
+			this.ey = new Vec2(-s, c);
+		}
+		// If there are two arguments and they are both of type vector2, then assign them to the column values of the matrix
+		else if(a != undefined && b !== undefined){
+			this.ex = a;
+			this.ey = b;
+		}
+		// Otherwise, just initialize the matrix with zeroes
+		else {
+			this.ex = new Vec2();
+			this.ey = new Vec2();
+		}
+	}
+	add(m){
+		return new Mat22(Vec2.Add(this.ex, m.ex), Vec2.Add(this.ey, m.ey));
+	}
+	transpose()	 {
+		return new Mat22(new Vec2(this.ex.x, this.ey.x), new Vec2(this.ex.y, this.ey.y));
+	}
+	static Abs(A){
+		return new Mat22(Vec2.Abs(A.ex), Vec2.Abs(A.ey));
+	}
+	static MultMM(A, B){
+		return new Mat22(Mat22.MultMV(A, B.ex), Mat22.MultMV(A, B.ey));
+	}
+	static MultMV(A, v){
+		return new Vec2(A.ex.x * v.x + A.ey.x * v.y, A.ex.y * v.x + A.ey.y * v.y);
+	}
+}
+
+// 2D vector
+class Vec2 {	
+	constructor(x = 0, y = 0){
+    this.x = x;
+    this.y = y;
+	}		
+	addi(v){
+		return new Vec2(this.x + v.x, this.y + v.y)
+	}
+	addScaled(vec, k){
+		this.x += k*vec.x;
+		this.y += k*vec.y;
+		return this;
+	}
+	clone(){
+		return new Vec2(this.x, this.y);
+	}
+	dot(v){
+		return this.x * v.x + this.y * v.y;
+	}
+	length(){
+		var x = this.x;
+		var y = this.y;
+		return Math.sqrt(x * x + y * y);
+	}
+	negate(){
+		this.x *= -1;
+		this.y *= -1;
+		return this
+	}
+	scale(s){
+		this.x *= s;
+		this.y *= s;
+		return this;
+	}
+	subtract(v){
+		this.x -= v.x;
+		this.y -= v.y;
+		return this;
+	}
+	set(x,y){
+		this.x = x;
+		this.y = y;
+		return this;
+	}
+	static Abs(vec){
+		return new Vec2(Math.abs(vec.x), Math.abs(vec.y))
+	}
+	static Add(a, b, out = new Vec2()){
+		out.x = a.x + b.x;
+		out.y = a.y + b.y;
+		return out;	
+	}
+	static AddScaled(a, b, s, out = new Vec2()){
+		out.x = a.x + b.x * s;
+		out.y = a.y + b.y * s;
+		return out;
+	}
+	static Scale(a, b, out = new Vec2()){
+    out.x = a.x * b;
+    out.y = a.y * b;
+    return out;
+	}
+	static Cross(a, b, out = new Vec2()){
+		if(typeof b === 'number'){
+			out.x = b * a.y;
+			out.y = -b * a.x
+			return out;
+		}
+		else if(typeof a === 'number'){
+			out.x = -a * b.y;
+			out.y = a * b.x
+			return out;
+		}
+    else{
+			return a.x * b.y - a.y * b.x;
+		}
+	}
+	static Subtract(a, b, out = new Vec2()){
+		out.x = a.x - b.x;
+		out.y = a.y - b.y;
+		return out;
+	};
+}
+
+Body = (x, y, r = 0, w, h, m = 1) => {
+  var b = {
+    width: w,
+		height: h,
+		position: new Vec2(x,y),
+		rotation: r,
+		linearVelocity: new Vec2(),
+		angularVelocity: 0,
+		force: new Vec2(),
+		torque: 0,	 
+		friction: 0.2,
+    mass: m
+  };
+  
+  if(b.mass < Number.MAX_VALUE){
+    b.invMass = 1 / b.mass;
+    b.I = b.mass * (b.width * b.width + b.height * b.height) / 12;
+    b.invI = 1 / b.I;
+  }
+  else {
+    b.invMass = 0;
+    b.I = Number.MAX_VALUE;
+    b.invI = 0;
+  }
+  
+  b.id = null; // this is an addition to the original Erin Catto code, to create the body pair key for arbiters Map list
+  
+  return b;
+  
+}
+
+ArbiterKey = (b1, b2) => {
+	//Cantor's enumeration of pairs
+	var x, y;
+	if(b1.id < b2.id){
+		x = b1.id; y = b2.id;
+	}
+	else {
+		x = b2.id; y = b1.id;
+	}
+	return ((x + y)*(x + y + 1)/2) + y
+}
+
+ClipSegmentToLine = (vOut, vIn, normal, offset, clipEdge) => {
+	// Start with no output points
+	var numOut = 0;
+	// Calculate the distance of end points to the line
+	var distance0 = normal.dot(vIn[0].v) - offset;
+	var distance1 = normal.dot(vIn[1].v) - offset;
+	// If the points are behind the plane
+	if(distance0 <= 0.0){
+		vOut[numOut] = vIn[0];
+		numOut++;
+	};
+	if(distance1 <= 0.0){
+		vOut[numOut] = vIn[1];
+		numOut++;
+	};
+	// If the points are on different sides of the plane
+	if(distance0 * distance1 < 0.0){
+		// Find intersection point of edge and plane
+		var interp = distance0 / (distance0 - distance1);
+		vOut[numOut].v = Vec2.AddScaled(vIn[0].v, vIn[1].v.clone().subtract(vIn[0].v) , interp);
+		if(distance0 > 0.0)		{
+			vOut[numOut].fp = vIn[0].fp;
+			vOut[numOut].fp.e.inEdge1 = clipEdge;
+			vOut[numOut].fp.e.inEdge2 = 0;
+		}
+		else {
+			vOut[numOut].fp = vIn[1].fp;
+			vOut[numOut].fp.e.outEdge1 = clipEdge;
+			vOut[numOut].fp.e.outEdge2 = 0;
+		}
+		numOut++;
+	}
+	return numOut;
+}
+
+ComputeIncidentEdge = (c, h, pos, Rot, normal) => {
+	// The normal is from the reference box. Convert it to the incident box's frame and flip sign.
+	var RotT = Rot.transpose();
+	var n = Mat22.MultMV(RotT, normal).negate(); // Vec2 n = (-(RotT * normal))
+	var nAbs = Vec2.Abs(n); // Vec2
+	if(nAbs.x > nAbs.y){
+		if(Math.sign(n.x) > 0.0){
+			c[0].v.set(h.x, -h.y);
+			c[0].fp.e.inEdge2 = 3;
+			c[0].fp.e.outEdge2 = 4;
+			c[1].v.set(h.x, h.y);
+			c[1].fp.e.inEdge2 = 4;
+			c[1].fp.e.outEdge2 = 1;
+		}
+		else {
+			c[0].v.set(-h.x, h.y);
+			c[0].fp.e.inEdge2 = 1;
+			c[0].fp.e.outEdge2 = 2;
+			c[1].v.set(-h.x, -h.y);
+			c[1].fp.e.inEdge2 = 2;
+			c[1].fp.e.outEdge2 = 3;
+		}
+	}
+	else {
+		if(Math.sign(n.y) > 0.0){
+			c[0].v.set(h.x, h.y);
+			c[0].fp.e.inEdge2 = 4;
+			c[0].fp.e.outEdge2 = 1;
+			c[1].v.set(-h.x, h.y);
+			c[1].fp.e.inEdge2 = 1;
+			c[1].fp.e.outEdge2 = 2;
+		}
+		else {
+			c[0].v.set(-h.x, -h.y);
+			c[0].fp.e.inEdge2 = 2;
+			c[0].fp.e.outEdge2 = 3;
+			c[1].v.set(h.x, -h.y);
+			c[1].fp.e.inEdge2 = 3;
+			c[1].fp.e.outEdge2 = 4;
+		}
+	}
+	c[0].v = Vec2.Add(pos, Mat22.MultMV(Rot, c[0].v));
+	c[1].v = Vec2.Add(pos, Mat22.MultMV(Rot, c[1].v));
+}
+
+ClipVertex = () => {
+  return {
+    v: new Vec2(),
+		fp: { // feature pair
+      e: {
+        inEdge1: 0,
+        outEdge1: 0,
+        inEdge2: 0,
+        outEdge2: 0
+      },
+      value: 0
+    }
+	}
+}
+
+// rect-rect collision detection
+collide = (contacts, bodyA, bodyB) => {
+	var hA = new Vec2(bodyA.width*0.5, bodyA.height*0.5);
+	var hB = new Vec2(bodyB.width*0.5, bodyB.height*0.5);
+	var posA = bodyA.position.clone();
+	var posB = bodyB.position.clone();
+	var RotA = new Mat22(bodyA.rotation);
+	var RotB = new Mat22(bodyB.rotation);
+	var RotAT = RotA.transpose();
+	var RotBT = RotB.transpose();
+	var dp = posB.clone().subtract(posA);
+	var dA = Mat22.MultMV(RotAT, dp);
+	var dB = Mat22.MultMV(RotBT, dp);
+	var C = Mat22.MultMM(RotAT, RotB);
+	var absC = Mat22.Abs(C);
+	var absCT = absC.transpose();
+	// Box A faces
+	var faceA = Vec2.Abs(dA).subtract(hA).subtract(Mat22.MultMV(absC, hB));
+	if(faceA.x > 0.0 || faceA.y > 0.0){
+		return false
+	};
+	// Box B faces
+	var faceB = Vec2.Abs(dB).subtract(Mat22.MultMV(absCT, hA)).subtract(hB);
+	if(faceB.x > 0.0 || faceB.y > 0.0){
+		return false
+	};
+	// if got to here, there is no separating axis = there is overlap
+	// Find best axis
+	var axis;
+	var separation;
+	var normal = new Vec2();
+	// Box A faces
+	axis = 0;
+	separation = faceA.x;
+	normal = (dA.x > 0.0) ? RotA.ex.clone() : RotA.ex.clone().negate();
+	const relativeTol = 0.95;
+	const absoluteTol = 0.01;
+	if(faceA.y > relativeTol * separation + absoluteTol * hA.y){
+		axis = 1;
+		separation = faceA.y;
+		normal = (dA.y > 0.0) ? RotA.ey.clone() : RotA.ey.clone().negate();
+	}
+	// Box B faces
+	if(faceB.x > relativeTol * separation + absoluteTol * hB.x){
+		axis = 2;
+		separation = faceB.x;
+		normal = (dB.x > 0.0) ? RotB.ex.clone() : RotB.ex.clone().negate();
+	}
+	if(faceB.y > relativeTol * separation + absoluteTol * hB.y){
+		axis = 3;
+		separation = faceB.y;
+		normal = (dB.y > 0.0) ? RotB.ey.clone() : RotB.ey.clone().negate();
+	}
+	// Setup clipping plane data based on the separating axis
+	var frontNormal, sideNormal;
+	var incidentEdge = [ClipVertex(), ClipVertex()];
+	var front, negSide, posSide;
+	var negEdge, posEdge;
+	// Compute the clipping lines and the line segment to be clipped
+	switch (axis){
+		case 0:	{
+			frontNormal = normal.clone();
+			front = posA.dot(frontNormal) + hA.x;
+			sideNormal = RotA.ey.clone();
+			var side = posA.dot(sideNormal);
+			negSide = -side + hA.y;
+			posSide =	side + hA.y;
+			negEdge = 3;
+			posEdge = 1;
+			ComputeIncidentEdge(incidentEdge, hB, posB, RotB, frontNormal);
+			break;
+		}
+		case 1:	{
+			frontNormal = normal.clone();
+			front = posA.dot(frontNormal) + hA.y;
+			sideNormal = RotA.ex.clone();
+			var side = posA.dot(sideNormal);
+			negSide = -side + hA.x;
+			posSide =	side + hA.x;
+			negEdge = 2;
+			posEdge = 4;
+			ComputeIncidentEdge(incidentEdge, hB, posB, RotB, frontNormal);
+			break;
+		}
+		case 2:	{
+			frontNormal = normal.clone().negate();
+			front = posB.dot(frontNormal) + hB.x;
+			sideNormal = RotB.ey.clone();
+			var side = posB.dot(sideNormal);
+			negSide = -side + hB.y;
+			posSide =	side + hB.y;
+			negEdge = 3;
+			posEdge = 1;
+			ComputeIncidentEdge(incidentEdge, hA, posA, RotA, frontNormal);
+			break;
+		}		
+		case 3:	{
+			frontNormal = normal.clone().negate();
+			front = posB.dot(frontNormal) + hB.y;
+			sideNormal = RotB.ex.clone();
+			var side = posB.dot(sideNormal);
+			negSide = -side + hB.x;
+			posSide =	side + hB.x;
+			negEdge = 2;
+			posEdge = 4;
+			ComputeIncidentEdge(incidentEdge, hA, posA, RotA, frontNormal);
+			break;
+		}
+	}
+	// clip other face with 5 box planes (1 face plane, 4 edge planes)
+	var clipPoints1 = [ClipVertex(), ClipVertex()]; // temp holder for 2 vertices to be clipped
+	var clipPoints2 = [ClipVertex(), ClipVertex()];
+	var np;
+	// Clip to box side 1
+	np = ClipSegmentToLine(clipPoints1, incidentEdge, sideNormal.clone().negate(), negSide, negEdge);
+	if(np < 2)	return false;
+	// Clip to negative box side 1
+	np = ClipSegmentToLine(clipPoints2, clipPoints1,	sideNormal, posSide, posEdge);
+	if(np < 2)	return false;
+	// Now clipPoints2 contains the clipping points
+	// Due to roundoff, it is possible that clipping removes all points
+	var numContacts = 0;
+	for(let i = 0; i < 2; i++){
+		let separation = frontNormal.dot(clipPoints2[i].v) - front;
+		if(separation <= 0){
+			contacts[numContacts].separation = separation;
+			contacts[numContacts].normal = normal.clone();
+			// slide contact point onto reference face (easy to cull)
+			contacts[numContacts].position = Vec2.AddScaled(clipPoints2[i].v, frontNormal, -separation);
+			contacts[numContacts].feature = clipPoints2[i].fp;
+			if(axis == 2 || axis == 3) flip(contacts[numContacts].feature);
+			numContacts++;
+		}
+	}
+	return numContacts;
+}
+
+contactsolver_prestep = (s, inv_dt) => {
+  const allowedPenetration = 0.01;
+  const biasFactor = 0.2;
+  const manifold = s.manifold;
+  const mA = manifold.bodyA.invMass;
+  const mB = manifold.bodyB.invMass;
+  const iA = manifold.bodyA.invI;
+  const iB = manifold.bodyB.invI;
+  const cA = manifold.bodyA.position;
+  const cB = manifold.bodyB.position;
+  const c = s.contactPoint;
+  Vec2.Subtract(c.position, cA, s.rA); // radii from COM to contact
+  Vec2.Subtract(c.position, cB, s.rB); // radii from COM to contact
+  // Precompute normal mass, tangent mass, and bias.		
+  let rnA = Vec2.Cross(s.rA, c.normal);
+  let rnB = Vec2.Cross(s.rB, c.normal);
+  let kNormal = mA + mB + iA * rnA * rnA + iB * rnB * rnB;
+  s.normalMass = kNormal > 0 ? 1 / kNormal : 0;
+  let tangent = Vec2.Cross(c.normal, 1); // vector2
+  let rtA = Vec2.Cross(s.rA, tangent);
+  let rtB = Vec2.Cross(s.rB, tangent);
+  let kTangent = mA + mB + iA * rtA * rtA + iB * rtB * rtB;
+  s.tangentMass = kTangent > 0 ? 1 / kTangent : 0;
+  s.velocityBias = -biasFactor * inv_dt * Math.min(0, c.separation + allowedPenetration);
+  // Apply normal + friction impulse
+  // This makes stacks stable
+  let P = c.normal.clone().scale(s.normalImpulse).addScaled(tangent, s.tangentImpulse); // vector2
+  manifold.bodyA.linearVelocity.addScaled(P, -mA);
+  manifold.bodyA.angularVelocity -= iA * Vec2.Cross(s.rA, P);
+  manifold.bodyB.linearVelocity.addScaled(P, mB);
+  manifold.bodyB.angularVelocity += iB * Vec2.Cross(s.rB, P);
+};
+
+contactsolver_solve = (s) => {
+  const manifold = s.manifold;
+  const mA = manifold.bodyA.invMass;
+  const mB = manifold.bodyB.invMass;
+  const iA = manifold.bodyA.invI;
+  const iB = manifold.bodyB.invI;
+  var c = s.contactPoint;
+  // Solve tangent constraints first because non-penetration is more important
+  // than friction.
+  var normal = c.normal;
+  var tangent = Vec2.Cross(normal, 1.0);
+  // Relative velocity at contact
+  let vrB = Vec2.Add(manifold.bodyB.linearVelocity, Vec2.Cross(manifold.bodyB.angularVelocity, s.rB));
+  let vrA = Vec2.Add(manifold.bodyA.linearVelocity, Vec2.Cross(manifold.bodyA.angularVelocity, s.rA))
+  let dv = Vec2.Subtract(vrB, vrA)
+  // Compute tangent force			
+  var vt = dv.dot(tangent);
+  var lambda = s.tangentMass * (-vt);
+  // Clamp friction
+  var maxFriction = manifold.friction * s.normalImpulse;
+  let newImpulse = clamp(s.tangentImpulse + lambda,-maxFriction, maxFriction);
+  lambda = newImpulse - s.tangentImpulse;
+  s.tangentImpulse = newImpulse;
+  // Apply contact impulse
+  let P = Vec2.Scale(tangent, lambda) ;
+  manifold.bodyA.linearVelocity.addScaled(P, -mA);
+  manifold.bodyA.angularVelocity -= iA * Vec2.Cross(s.rA, P);
+  manifold.bodyB.linearVelocity.addScaled(P, mB);
+  manifold.bodyB.angularVelocity += iB * Vec2.Cross(s.rB, P);
+  // Solve normal constraints
+  // Relative velocity at contact
+  dv = Vec2.Subtract(Vec2.Add(manifold.bodyB.linearVelocity, Vec2.Cross(manifold.bodyB.angularVelocity, s.rB)), Vec2.Add(manifold.bodyA.linearVelocity, Vec2.Cross(manifold.bodyA.angularVelocity, s.rA)))
+  // Compute normal impulse	
+  var vn = dv.dot(c.normal);
+  lambda = s.normalMass * (-vn + s.velocityBias); // incremental impulse
+  // Clamp the accumulated impulse
+  newImpulse = Math.max(s.normalImpulse + lambda, 0);
+  lambda = newImpulse - s.normalImpulse;
+  s.normalImpulse = newImpulse;
+  // Apply contact impulse
+  P = Vec2.Scale(c.normal, lambda);
+  manifold.bodyA.linearVelocity.addScaled(P, -mA);
+  manifold.bodyA.angularVelocity -= iA * Vec2.Cross(s.rA, P);
+  manifold.bodyB.linearVelocity.addScaled(P, mB);
+  manifold.bodyB.angularVelocity += iB * Vec2.Cross(s.rB, P);
+}
+
+flip = (p) => {
+  const edges = p.e;
+  const tempIn = edges.inEdge1;
+  const tempOut = edges.outEdge1;
+  edges.inEdge1 = edges.inEdge2;
+  edges.inEdge2 = tempIn;
+  edges.outEdge1 = edges.outEdge2;
+  edges.outEdge2 = tempOut;
+}
+
+getKey = (p) => {
+  return p.e.inEdge1 + (p.e.outEdge1 << 8) + (p.e.inEdge2 << 16) + (p.e.outEdge2 << 24);
+};
+
+equals = (p, fp) => {
+  return getKey(p) === getKey(fp);
+}
+
+create = () => {
+	let demoIndex = 4;
+	InitDemo(demoIndex);
+	let demoList = document.getElementById('demolist');
+	demoList.addEventListener('change', (e) => {
+		let target = e.target;
+		demoIndex = parseInt(target.value);
+		InitDemo(demoIndex);	 
+	});
+}
+
+// a single box
+Demo1 = () => {
+	const b = Body(0,-0.5*20,0,100,20,Number.MAX_VALUE); // ground
+	addBody(b);
+	addBody(Body(0,4,0,1,1,200))
+}
+
+// Varying friction coefficients 
+Demo3 = () => {
+	b1 = Body(0,-0.5*20,0,100,20,Number.MAX_VALUE); // ground
+	addBody(b1);
+	b2 = Body(-2,11,0,13,0.25,Number.MAX_VALUE)
+	b2.rotation = -0.25;
+	addBody(b2);
+	b3 = Body(5.25, 9.5, 0, 0.25, 1, Number.MAX_VALUE);
+	addBody(b3);
+	b4 = Body(2.0, 7.0, 0, 13, 0.25, Number.MAX_VALUE);
+	b4.rotation = 0.25;
+	addBody(b4);
+	b5 = Body(-5.25, 5.5, 0, 0.25, 1, Number.MAX_VALUE);
+	addBody(b5);
+	b6 = Body(-2.0, 3.0, 0, 13, 0.25, Number.MAX_VALUE);
+	b6.rotation = -0.25;
+	addBody(b6);
+	let friction = [0.75, 0.5, 0.35, 0.1, 0.0];
+	for(let i = 0; i < 5; i++){
+		const b = Body(-7.5 + 2.0 * i, 14.0, 0, 0.5, 0.5, 25);
+		b.friction = friction[i];
+		addBody(b);
+	}
+}
+
+// a vertical stack
+Demo4 = () => {
+	addBody(Body(0,-0.5*20,0,100,20,Number.MAX_VALUE)); // ground
+	for(let i = 0; i < 14; i++){	
+		const x = (Math.random()*0.2)-0.1;
+		const b = Body(-1.5, 1 + 1.2 * i, 0, 1,1,1)
+		addBody(b);
+    
+    const c = Body(1.5+x, 1 + 1.2 * i, 0, 1,1,1)
+		addBody(c);
+	}
+}
+
+// A pyramid
+Demo5 = () => {
+	const b = Body(0, -0.5*20, 0, 100, 20, Number.MAX_VALUE); // ground
+	addBody(b);
+	let x = new Vec2(-6.0, 0.75);
+	let y = new Vec2();
+	for(let i = 0; i < 12; i++){
+		y = x.clone();
+		for(let j = i; j < 12; j++){
+			const b = Body(y.x, y.y, 0, 1, 1, 10);
+			addBody(b);
+			Vec2.Add(y, new Vec2(1.125, 0.0),y);
+		}
+		Vec2.Add(x, new Vec2(0.5625, 2.0),x) ;
+	}
+}
+
+InitDemo = (index) => {
+	clear();
+	switch(index){
+		case 1: {
+			Demo1();
+			break;
+		}
+		case 3: {
+			Demo3();
+			break;
+		}
+		case 4: {
+			Demo4();
+			break;
+		}
+		case 5: {
+			Demo5();
+			break;
+		}
+	}
+}
+
+render = () => {
+
+	scale = 30;
+	
+	// reset canvas
+	canvas.width ^= 0;
+	
+	// draw shapes
+	for(e of bodies){
+		
+		c.save(),
+		c.translate(400 + e.position.x * scale, 550 - e.position.y * scale);
+		c.rotate(-e.rotation);
+		c.beginPath();
+
+		// rectangle
+		c.rect(-(e.width/2) * scale, -(e.height/2) * scale, e.width * scale, e.height * scale);
+		
+		c.closePath(),
+		c.stroke()
+		c.restore();
+	}
+  
+  // draw contacts
+  for(i of arbiters){
+    for(j of i[1].contacts){
+      if(j.position.x || j.position.y){
+        c.beginPath();
+        c.arc(400 + j.position.x * scale, 550 - j.position.y * scale, 3, 0, 7);
+        c.closePath();
+        c.fill();
+      }
+    }
+  }
+}
+
+// Globals
+gravity = new Vec2(0, -9.8);
+bodies = [];
+arbiters = new Map();
+iterations = 10;
+idCounter = 0;
+
+// World methods
+addBody = (body) => {
+  idCounter++;
+  body.id = this.idCounter;
+  bodies.push(body);
+  return body;
+}
+
+// Simulate 1 frame
+run = () => {
+
+  var dt = .01;
+  var inv_dt = 1 / dt;
+  
+  // Broad phase: determine overlapping rectangles and update contact points
+  for(let i = 0; i < bodies.length - 1; i++){
+    var bi = bodies[i];
+    for(let j = i+1; j < bodies.length; j++){
+      var bj = bodies[j];
+      if(bi.invMass == 0 && bj.invMass == 0){
+        continue;
+      }
+      let bodyA, bodyB;	
+      if(bi.id > bj.id){
+        bodyA = bi;
+        bodyB = bodyB;
+      }
+      else {
+        bodyB = bi;
+        bodyA = bj;
+      }
+      var key = ArbiterKey(bodyA, bodyB);
+      
+      var c = [  // hold up to 2 contact points
+        {
+          position: new Vec2(),
+          normal: new Vec2(),
+          separation: 0,
+          feature: null
+        },
+        
+        {
+          position: new Vec2(),
+          normal: new Vec2(),
+          separation: 0,
+          feature: null
+        }
+      ];
+      
+      var numContacts = collide(c, bodyA, bodyB);
+      contacts = {contacts: c, numContacts: numContacts};
+      
+      // Create manifold
+      if(contacts.numContacts > 0){
+        var newArb = {
+          bodyA: bodyA,
+          bodyB: bodyB,
+          contacts: contacts.contacts, // hold up to 2 contact points
+          numContacts: contacts.numContacts,
+          constraints: [],
+          friction: Math.sqrt(bodyA.friction * bodyB.friction)
+        };
+        
+        for(let i = 0; i < newArb.numContacts; i++){
+          const c = newArb.contacts[i];
+          newArb.constraints.push(
+            
+            // new contact solver
+            {
+              manifold: newArb,
+              contactPoint: c,
+              normalImpulse: 0,   // float - accumulated normal impulse
+              tangentImpulse: 0,  // float - accumulated tangent impulse
+              rA: new Vec2(), 
+              rB: new Vec2(), 
+              normalMass: 0,      // float
+              tangentMass: 0,	    // float
+              velocityBias: 0     // float
+            }
+          );
+        }
+        newArb.K = new Mat22();
+        
+        var oldArb = arbiters.get(key);
+        if(oldArb){
+          
+          // update existing manifold
+          for(let i = 0; i < newArb.numContacts; i++){
+            let cNew = newArb.contacts[i];
+            let j = 0;
+            for(; j < oldArb.numContacts; j++){
+              const cOld = newArb.contacts[j];
+              if(equals(cNew.feature, cOld.feature)){					
+                break;
+              }
+            }
+            if(j < oldArb.numContacts){
+              newArb.constraints[i].normalImpulse = oldArb.constraints[j].normalImpulse;
+              newArb.constraints[i].tangentImpulse = oldArb.constraints[j].tangentImpulse;	
+            }
+          }
+        }
+        arbiters.set(key, newArb);
+      }
+      else {
+        arbiters.delete(key)
+      }
+    }
+  }
+  
+  // Integrate forces
+  bodies.forEach(b => {
+    if(b.invMass !== 0){	 
+      b.linearVelocity.addScaled(gravity, dt);
+      b.angularVelocity += b.torque * b.invI * dt;
+    }
+  });
+  
+  // perform pre-steps
+  for(const arb of arbiters.values()){
+    for(let i = 0; i < arb.numContacts; i++){	
+      contactsolver_prestep(arb.constraints[i], inv_dt);
+    }
+  }
+  
+  // perform solving iterations
+  for(let i = 0; i < iterations; i++){
+    for(const arb of arbiters.values()){
+      for(let j = 0; j < arb.numContacts; j++){		
+        contactsolver_solve(arb.constraints[j]);
+      }
+    }
+  }
+  
+  // integrate velocities
+  for(let i = 0; i < bodies.length; i++){
+    let b = bodies[i];
+    b.position.addScaled(b.linearVelocity, dt);
+    b.rotation += b.angularVelocity * dt;
+    b.force.set(0, 0);
+    b.torque = 0;
+  }
+}
+
+// Reset
+clear = () => {
+  bodies = [];
+  arbiters.clear();
+  idCounter = 0;
+}
+
+// Loop
+create();
+interval = setInterval(() => {
+	run();
+	render();
+}, 16);
+
+</script>
