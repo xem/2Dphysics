@@ -2,7 +2,7 @@
 <select id="demolist">
 	<option value="1">A Single Box</option>			 
 	<option value="3">Varying Friction Coefficients</option>
-	<option value="4" selected>Randomized Stacking</option>
+	<option value="4">Randomized Stacking</option>
 	<option value="5">Pyramid Stacking</option>
 </select>
 <br>
@@ -13,13 +13,12 @@
 // Setup
 c = canvas.getContext("2d");
 
-// Helper
+// Clamp helper
 clamp = (n, min, max) => Math.min(Math.max(n, min), max);
 
-// 2x2 matrix
+// 2x2 matrix helpers
 class Mat22 {
 	constructor(a, b){
-    //console.log(a, b);
 		if(b === undefined){
 			const c = Math.cos(a);
 			const s = Math.sin(a);
@@ -67,38 +66,68 @@ crossVN=(v,n)=>[n*v[1],-n*v[0]];
 crossNV=(n,v)=>[-n*v[1],n*v[0]];
 crossVV=(v,w)=>v[0]*w[1]-v[1]*w[0];
 
-Body = (x, y, r = 0, w, h, m = 1) => {
-  var b = {
-    width: w,
-		height: h,
-		position: [x,y],
-		rotation: r,
-		linearVelocity: [0,0],
-		angularVelocity: 0,
-		force: [0,0],
-		torque: 0,	 
-		friction: 0.2,
-    mass: m
-  };
+// Globals
+gravity = [0, -9.8];
+arbiters = new Map();
+iterations = 10;
+idCounter = 0;
+
+H = [];         // shapes (circles, rectangles)
+J = [];         // joints (spring, repulsive, fixed, hinge)
+M = [];         // manifolds (arbiters)
+
+// Shapes types constants
+RECTANGLE = 0;
+CIRCLE = 1;
+
+// Joints types constants
+SPRING = 0;
+REPULSIVE = 1;
+HINGE = 2;
+FIXED = 3;
+
+// Shapes
+// params: type, center, mass, width, height, {options}
+shape = (t, c, m=1, w=9, h=9, o,
+
+  // inertia
+  i = (
+    t
+    ? m * w * w / 2 // circle
+    : m * (w * w + h * h) / 12 // rectangle
+  ),
   
-  //console.log(b,x,y);
-  
-  if(b.mass < Number.MAX_VALUE){
-    b.invMass = 1 / b.mass;
-    b.I = b.mass * (b.width * b.width + b.height * b.height) / 12;
-    b.invI = 1 / b.I;
+  // shape
+  s = {
+    t,
+    m,
+    w,
+    h,
+    c,
+    f: .5,              // friction
+    r: .5,              // restitution
+    a: 0,               // angle
+    v: [0, 0],          // velocity
+    A: 0,               // angular velocity
+    //g: G,               // gravity
+    F: [0, 0],          // forceAccumulator
+    T: 0,               // torqueAccumulator
+    R: 1,               // rotations enabled
+    p: [],              // anchorPoints
+    N: [],              // noCollisions
+    P: [0, 0],          // propulsion
+    M: m ? 1 / m : 0,   // invMass
+    I: i ? 1 / i : 0,   // invInertia
+    e: H.length,        // index in shapes list
+    id: null,           // id
+    ...o,               // custom options
   }
-  else {
-    b.invMass = 0;
-    b.I = Number.MAX_VALUE;
-    b.invI = 0;
-  }
-  
-  b.id = null; // this is an addition to the original Erin Catto code, to create the body pair key for arbiters Map list
-  
-  return b;
-  
-}
+) => (
+  idCounter++,
+  s.id = idCounter,
+  H.push(s),            // add shape in shapes list
+  s                     // return shape
+);
 
 ArbiterKey = (b1, b2) => {
 	//Cantor's enumeration of pairs
@@ -209,36 +238,47 @@ ClipVertex = () => {
 
 // rect-rect collision detection
 collide = (contacts, bodyA, bodyB) => {
-	var hA = [bodyA.width*0.5, bodyA.height*0.5];
-	var hB = [bodyB.width*0.5, bodyB.height*0.5];
-  //console.log(bodyA);
-	var posA = bodyA.position;
-	var posB = bodyB.position;
-	var RotA = new Mat22(bodyA.rotation);
-	var RotB = new Mat22(bodyB.rotation);
+
+  // half size
+	var hA = [bodyA.w*0.5, bodyA.h*0.5];
+	var hB = [bodyB.w*0.5, bodyB.h*0.5];
+  
+  // position
+	var posA = bodyA.c;
+	var posB = bodyB.c;
+  
+  // angle
+	var RotA = new Mat22(bodyA.a);
+	var RotB = new Mat22(bodyB.a);
 	var RotAT = RotA.transpose();
 	var RotBT = RotB.transpose();
+  
+  // distance
 	var dp = subtract(posB, posA);
 	var dA = Mat22.MultMV(RotAT, dp);
 	var dB = Mat22.MultMV(RotBT, dp);
 	var C = Mat22.MultMM(RotAT, RotB);
 	var absC = Mat22.Abs(C);
 	var absCT = absC.transpose();
+  
 	// Box A faces
-	var faceA = subtract(subtract(abs(dA),hA), Mat22.MultMV(absC, hB));
+	var faceA = subtract(subtract(abs(dA), hA), Mat22.MultMV(absC, hB));
 	if(faceA[0] > 0.0 || faceA[1] > 0.0){
 		return false
 	};
+  
 	// Box B faces
 	var faceB = subtract(subtract(abs(dB), Mat22.MultMV(absCT, hA)), hB);
 	if(faceB[0] > 0.0 || faceB[1] > 0.0){
 		return false
 	};
+  
 	// if got to here, there is no separating axis = there is overlap
 	// Find best axis
 	var axis;
 	var separation;
 	var normal = [0,0];
+  
 	// Box A faces
 	axis = 0;
 	separation = faceA[0];
@@ -250,6 +290,7 @@ collide = (contacts, bodyA, bodyB) => {
 		separation = faceA[1];
 		normal = (dA[1] > 0.0) ? RotA.ey : negate(RotA.ey);
 	}
+  
 	// Box B faces
 	if(faceB[0] > relativeTol * separation + absoluteTol * hB[0]){
 		axis = 2;
@@ -261,6 +302,7 @@ collide = (contacts, bodyA, bodyB) => {
 		separation = faceB[1];
 		normal = (dB[1] > 0.0) ? RotB.ey : negate(RotB.ey);
 	}
+  
 	// Setup clipping plane data based on the separating axis
 	var frontNormal, sideNormal;
 	var incidentEdge = [ClipVertex(), ClipVertex()];
@@ -336,12 +378,13 @@ collide = (contacts, bodyA, bodyB) => {
 			contacts[numContacts].separation = separation;
 			contacts[numContacts].normal = normal;
 			// slide contact point onto reference face (easy to cull)
-			contacts[numContacts].position = addScaled(clipPoints2[i].v, frontNormal, -separation);
+			contacts[numContacts].c = addScaled(clipPoints2[i].v, frontNormal, -separation);
 			contacts[numContacts].feature = clipPoints2[i].fp;
 			if(axis == 2 || axis == 3) flip(contacts[numContacts].feature);
 			numContacts++;
 		}
 	}
+
 	return numContacts;
 }
 
@@ -349,16 +392,16 @@ contactsolver_prestep = (s, inv_dt) => {
   const allowedPenetration = 0.01;
   const biasFactor = 0.2;
   const manifold = s.manifold;
-  const mA = manifold.bodyA.invMass;
-  const mB = manifold.bodyB.invMass;
-  const iA = manifold.bodyA.invI;
-  const iB = manifold.bodyB.invI;
-  const cA = manifold.bodyA.position;
-  const cB = manifold.bodyB.position;
+  const mA = manifold.bodyA.M;
+  const mB = manifold.bodyB.M;
+  const iA = manifold.bodyA.I;
+  const iB = manifold.bodyB.I;
+  const cA = manifold.bodyA.c;
+  const cB = manifold.bodyB.c;
   const c = s.contactPoint;
-  // These 2 ines apply the rotation
-  s.rA = subtract(c.position, cA); // radii from COM to contact
-  s.rB = subtract(c.position, cB); // radii from COM to contact
+  // These 2 lines apply the rotation
+  s.rA = subtract(c.c, cA); // radii from COM to contact
+  s.rB = subtract(c.c, cB); // radii from COM to contact
   // Precompute normal mass, tangent mass, and bias.		
   let rnA = crossVV(s.rA, c.normal);
   let rnB = crossVV(s.rB, c.normal);
@@ -373,52 +416,44 @@ contactsolver_prestep = (s, inv_dt) => {
   // Apply normal + friction impulse
   // This makes stacks stable
   let P = addScaled(scale(c.normal, s.normalImpulse), tangent, s.tangentImpulse); // vector2
-  //console.log(manifold.bodyA.linearVelocity);
-  manifold.bodyA.linearVelocity = addScaled(manifold.bodyA.linearVelocity, P, -mA);
-  //console.log(manifold.bodyA.angularVelocity, manifold.bodyB.angularVelocity, s.rA, s.rB, P, iA, iB, crossVV(s.rA, P));
-  manifold.bodyA.angularVelocity -= iA * crossVV(s.rA, P);
-  manifold.bodyB.linearVelocity = addScaled(manifold.bodyB.linearVelocity, P, mB);
-  manifold.bodyB.angularVelocity += iB * crossVV(s.rB, P);
-  //console.log(manifold.bodyA.angularVelocity, manifold.bodyB.angularVelocity);
+  manifold.bodyA.v = addScaled(manifold.bodyA.v, P, -mA);
+  manifold.bodyA.A -= iA * crossVV(s.rA, P);
+  manifold.bodyB.v = addScaled(manifold.bodyB.v, P, mB);
+  manifold.bodyB.A += iB * crossVV(s.rB, P);
 };
 
 contactsolver_solve = (s) => {
   const manifold = s.manifold;
-  const mA = manifold.bodyA.invMass;
-  const mB = manifold.bodyB.invMass;
-  const iA = manifold.bodyA.invI;
-  const iB = manifold.bodyB.invI;
+  const mA = manifold.bodyA.M;
+  const mB = manifold.bodyB.M;
+  const iA = manifold.bodyA.I;
+  const iB = manifold.bodyB.I;
   var c = s.contactPoint;
   // Solve tangent constraints first because non-penetration is more important
   // than friction.
   var normal = c.normal;
   var tangent = crossVN(normal, 1.0);
-  //console.log(tangent, manifold.bodyB.linearVelocity, manifold.bodyB.angularVelocity, s.rB);
   // Relative velocity at contact
-  let vrB = add(manifold.bodyB.linearVelocity, crossNV(manifold.bodyB.angularVelocity, s.rB));
-  let vrA = add(manifold.bodyA.linearVelocity, crossNV(manifold.bodyA.angularVelocity, s.rA));
+  let vrB = add(manifold.bodyB.v, crossNV(manifold.bodyB.A, s.rB));
+  let vrA = add(manifold.bodyA.v, crossNV(manifold.bodyA.A, s.rA));
   let dv = subtract(vrB, vrA);
   // Compute tangent force			
   var vt = dot(dv, tangent);
   var lambda = s.tangentMass * (-vt);
-  //console.log(manifold.bodyB.angularVelocity, s.rB, crossNV(manifold.bodyB.angularVelocity, s.rB));
   // Clamp friction
-  var maxFriction = manifold.friction * s.normalImpulse;
+  var maxFriction = manifold.f * s.normalImpulse;
   let newImpulse = clamp(s.tangentImpulse + lambda, -maxFriction, maxFriction);
   lambda = newImpulse - s.tangentImpulse;
   s.tangentImpulse = newImpulse;
   // Apply contact impulse
   let P = scale(tangent, lambda);
-  //console.log(manifold.bodyA.linearVelocity, P, -mA);
-  manifold.bodyA.linearVelocity = addScaled(manifold.bodyA.linearVelocity, P, -mA);
-  //console.log(manifold.bodyA.angularVelocity, iA, s.rA, P);
-  manifold.bodyA.angularVelocity -= iA * crossVV(s.rA, P);
-  //console.log(manifold.bodyA.angularVelocity);
-  manifold.bodyB.linearVelocity = addScaled(manifold.bodyB.linearVelocity, P, mB);
-  manifold.bodyB.angularVelocity += iB * crossVV(s.rB, P);
+  manifold.bodyA.v = addScaled(manifold.bodyA.v, P, -mA);
+  manifold.bodyA.A -= iA * crossVV(s.rA, P);
+  manifold.bodyB.v = addScaled(manifold.bodyB.v, P, mB);
+  manifold.bodyB.A += iB * crossVV(s.rB, P);
   // Solve normal constraints
   // Relative velocity at contact
-  dv = subtract(add(manifold.bodyB.linearVelocity, crossNV(manifold.bodyB.angularVelocity, s.rB)), add(manifold.bodyA.linearVelocity, crossNV(manifold.bodyA.angularVelocity, s.rA)))
+  dv = subtract(add(manifold.bodyB.v, crossNV(manifold.bodyB.A, s.rB)), add(manifold.bodyA.v, crossNV(manifold.bodyA.A, s.rA)))
   // Compute normal impulse	
   var vn = dot(dv, c.normal);
   lambda = s.normalMass * (-vn + s.velocityBias); // incremental impulse
@@ -428,12 +463,10 @@ contactsolver_solve = (s) => {
   s.normalImpulse = newImpulse;
   // Apply contact impulse
   P = scale(c.normal, lambda);
-  //console.log(manifold.bodyA.linearVelocity);
-  manifold.bodyA.linearVelocity = addScaled(manifold.bodyA.linearVelocity, P, -mA);
-  //console.log(manifold.bodyA.angularVelocity);
-  manifold.bodyA.angularVelocity -= iA * crossVV(s.rA, P);
-  manifold.bodyB.linearVelocity = addScaled(manifold.bodyB.linearVelocity, P, mB);
-  manifold.bodyB.angularVelocity += iB * crossVV(s.rB, P);
+  manifold.bodyA.v = addScaled(manifold.bodyA.v, P, -mA);
+  manifold.bodyA.A -= iA * crossVV(s.rA, P);
+  manifold.bodyB.v = addScaled(manifold.bodyB.v, P, mB);
+  manifold.bodyB.A += iB * crossVV(s.rB, P);
 }
 
 flip = (p) => {
@@ -454,21 +487,6 @@ equals = (p, fp) => {
   return getKey(p) === getKey(fp);
 }
 
-// Globals
-gravity = [0, -9.8];
-bodies = [];
-arbiters = new Map();
-iterations = 10;
-idCounter = 0;
-
-// World methods
-addBody = (body) => {
-  idCounter++;
-  body.id = this.idCounter;
-  bodies.push(body);
-  return body;
-}
-
 // Simulate 1 frame
 run = () => {
 
@@ -476,11 +494,11 @@ run = () => {
   var inv_dt = 1 / dt;
   
   // Broad phase: determine overlapping rectangles and update contact points
-  for(let i = 0; i < bodies.length - 1; i++){
-    var bi = bodies[i];
-    for(let j = i+1; j < bodies.length; j++){
-      var bj = bodies[j];
-      if(bi.invMass == 0 && bj.invMass == 0){
+  for(let i = 0; i < H.length - 1; i++){
+    var bi = H[i];
+    for(let j = i+1; j < H.length; j++){
+      var bj = H[j];
+      if(bi.M == 0 && bj.M == 0){
         continue;
       }
       let bodyA, bodyB;	
@@ -496,25 +514,23 @@ run = () => {
       
       var c = [  // hold up to 2 contact points
         {
-          position: [0,0],
+          c: [0,0], // position
           normal: [0,0],
           separation: 0,
           feature: null
         },
         
         {
-          position: [0,0],
+          c: [0,0],
           normal: [0,0],
           separation: 0,
           feature: null
         }
       ];
-      
-      //console.log(bodyA.position);
+
       var numContacts = collide(c, bodyA, bodyB);
       contacts = {contacts: c, numContacts: numContacts};
-      
-      
+
       // Create manifold
       if(contacts.numContacts > 0){
         var newArb = {
@@ -523,7 +539,7 @@ run = () => {
           contacts: contacts.contacts, // hold up to 2 contact points
           numContacts: contacts.numContacts,
           constraints: [],
-          friction: Math.sqrt(bodyA.friction * bodyB.friction)
+          f: Math.sqrt(bodyA.f * bodyB.f) // friction
         };
         
         for(let i = 0; i < newArb.numContacts; i++){
@@ -574,13 +590,10 @@ run = () => {
   }
   
   // Integrate forces
-  bodies.forEach(b => {
-    if(b.invMass !== 0){	
-      //console.log(b.linearVelocity, gravity, dt, addScaled(b.linearVelocity, gravity, dt));
-      b.linearVelocity = addScaled(b.linearVelocity, gravity, dt);
-      //if(isNaN(b.linearVelocity[0]))console.log(b.linearVelocity);
-      //console.log(b.angularVelocity);
-      b.angularVelocity += b.torque * b.invI * dt;
+  H.forEach(b => {
+    if(b.M !== 0){	
+      b.v = addScaled(b.v, gravity, dt);
+      b.A += b.T * b.I * dt;
     }
   });
   
@@ -590,7 +603,6 @@ run = () => {
       contactsolver_prestep(arb.constraints[i], inv_dt);
     }
   }
-  
   
   // perform solving iterations
   for(let i = 0; i < iterations; i++){
@@ -602,26 +614,24 @@ run = () => {
   }
   
   // integrate velocities
-  for(let i = 0; i < bodies.length; i++){
-    let b = bodies[i];
-    //console.log(JSON.stringify(b));
-    b.position = addScaled(b.position, b.linearVelocity, dt);
-    //console.log(bodies[1].position);
-    b.rotation += b.angularVelocity * dt;
-    b.force = [0, 0];
-    b.torque = 0;
+  for(let i = 0; i < H.length; i++){
+    let b = H[i];
+    b.c = addScaled(b.c, b.v, dt);
+    b.a += b.A * dt;
+    b.F = [0, 0];
+    b.T = 0;
   }
 }
 
-// Reset
+// Reset the scene
 clear = () => {
-  bodies = [];
+  H = [];
   arbiters.clear();
   idCounter = 0;
 }
 
 create = () => {
-	let demoIndex = 4;
+	let demoIndex = 1;
 	InitDemo(demoIndex);
 	let demoList = document.getElementById('demolist');
 	demoList.addEventListener('change', (e) => {
@@ -633,63 +643,44 @@ create = () => {
 
 // a single box
 Demo1 = () => {
-	const b = Body(0,-0.5*20,0,100,20,Number.MAX_VALUE); // ground
-	addBody(b);
-	addBody(Body(0,4,0,1,1,200))
+	shape(RECTANGLE, [0,-10], 0, 100, 20); // ground
+	shape(RECTANGLE, [0,4], 200, 1, 1);        // box
 }
 
 // Varying friction coefficients 
 Demo3 = () => {
-	b1 = Body(0,-0.5*20,0,100,20,Number.MAX_VALUE); // ground
-	addBody(b1);
-	b2 = Body(-2,11,0,13,0.25,Number.MAX_VALUE)
-	b2.rotation = -0.25;
-	addBody(b2);
-	b3 = Body(5.25, 9.5, 0, 0.25, 1, Number.MAX_VALUE);
-	addBody(b3);
-	b4 = Body(2.0, 7.0, 0, 13, 0.25, Number.MAX_VALUE);
-	b4.rotation = 0.25;
-	addBody(b4);
-	b5 = Body(-5.25, 5.5, 0, 0.25, 1, Number.MAX_VALUE);
-	addBody(b5);
-	b6 = Body(-2.0, 3.0, 0, 13, 0.25, Number.MAX_VALUE);
-	b6.rotation = -0.25;
-	addBody(b6);
+	shape(RECTANGLE, [0,-10], 0, 100, 20); // ground
+	shape(RECTANGLE, [-2, 11], 0, 13, .25, {a: -.25});
+	shape(RECTANGLE, [5.25, 9.5], 0, .25, 1);
+	shape(RECTANGLE, [2.0, 7.0], 0, 13, .25, {a: .25});
+	shape(RECTANGLE, [-5.25, 5.5], 0, .25, 1);
+	shape(RECTANGLE, [-2.0, 3.0], 0, 13, .25, {a: -.25});
 	let friction = [0.75, 0.5, 0.35, 0.1, 0.0];
-	for(let i = 0; i < 5; i++){
-		const b = Body(-7.5 + 2.0 * i, 14.0, 0, 0.5, 0.5, 25);
-		b.friction = friction[i];
-		addBody(b);
+  for(let i = 0; i < 5; i++){
+		shape(RECTANGLE, [-7.5 + 2 * i, 14], 25, .5, .5, {f: friction[i]});
 	}
 }
 
 // a vertical stack
 Demo4 = () => {
-	addBody(Body(0,-0.5*20,0,100,20,Number.MAX_VALUE)); // ground
+	shape(RECTANGLE, [0, -10], 0, 100, 20); // ground
   
 	for(let i = 0; i < 14; i++){	
 		const x = (Math.random()*0.2)-0.1;
-		const b = Body(-1.5, 1 + 1.2 * i, 0, 1,1,1)
-		addBody(b);
-    
-    const c = Body(1.5+x, 1 + 1.2 * i, 0, 1,1,1)
-		addBody(c);
-    
-    //console.log(b.position,c.position);
+		shape(RECTANGLE, [-1.5, 1 + 1.2 * i], 1, 1, 1);
+    shape(RECTANGLE, [1.5 + x, 1 + 1.2 * i], 1, 1, 1);
 	}
 }
 
 // A pyramid
 Demo5 = () => {
-	const b = Body(0, -0.5*20, 0, 100, 20, Number.MAX_VALUE); // ground
-	addBody(b);
+	shape(RECTANGLE, [0, -10], 0, 100, 20); // ground
 	let x = [-6.0, 0.75];
 	let y = [0,0];
 	for(let i = 0; i < 12; i++){
 		y = x;
 		for(let j = i; j < 12; j++){
-			const b = Body(y[0], y[1], 0, 1, 1, 10);
-			addBody(b);
+			shape(RECTANGLE, y, 10, 1, 1);
 			y = add(y, [1.125, 0.0]);
 		}
 		x = add(x, [0.5625, 2.0]) ;
@@ -726,27 +717,29 @@ render = () => {
 	canvas.width ^= 0;
 	
 	// draw shapes
-	for(e of bodies){
+	for(e of H){
 		
 		c.save(),
-		c.translate(400 + e.position[0] * drawscale, 550 - e.position[1] * drawscale);
-		c.rotate(-e.rotation);
+		c.translate(400 + e.c[0] * drawscale, 550 - e.c[1] * drawscale);
+		c.rotate(-e.a);
 		c.beginPath();
 
 		// rectangle
-		c.rect(-(e.width/2) * drawscale, -(e.height/2) * drawscale, e.width * drawscale, e.height * drawscale);
+		c.rect(-(e.w/2) * drawscale, -(e.h/2) * drawscale, e.w * drawscale, e.h * drawscale);
 		
-		c.closePath(),
-		c.stroke()
+		c.closePath();
+    c.fillStyle = "#ddd";
+    c.fill();
+		c.stroke();
 		c.restore();
 	}
   
   // draw contacts
   for(i of arbiters){
     for(j of i[1].contacts){
-      if(j.position[0] || j.position[1]){
+      if(j.c[0] || j.c[1]){
         c.beginPath();
-        c.arc(400 + j.position[0] * drawscale, 550 - j.position[1] * drawscale, 3, 0, 7);
+        c.arc(400 + j.c[0] * drawscale, 550 - j.c[1] * drawscale, 3, 0, 7);
         c.closePath();
         c.fill();
       }
