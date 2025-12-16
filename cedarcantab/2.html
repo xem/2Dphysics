@@ -23,8 +23,8 @@ class Mat22 {
 		if(b === undefined){
 			const c = Math.cos(a);
 			const s = Math.sin(a);
-			this.ex = V2(c, s);
-			this.ey = V2(-s, c);
+			this.ex = [c, s];
+			this.ey = [-s, c];
 		}
 		// If there are two arguments and they are both of type vector2, then assign them to the column values of the matrix
 		else if(a != undefined && b !== undefined){
@@ -33,15 +33,15 @@ class Mat22 {
 		}
 		// Otherwise, just initialize the matrix with zeroes
 		else {
-			this.ex = V2();
-			this.ey = V2();
+			this.ex = [0,0];
+			this.ey = [0,0];
 		}
 	}
 	add(m){
 		return new Mat22(add(this.ex, m.ex), add(this.ey, m.ey));
 	}
 	transpose()	 {
-		return new Mat22(V2(this.ex.x, this.ey.x), V2(this.ex.y, this.ey.y));
+		return new Mat22([this.ex[0], this.ey[0]], [this.ex[1], this.ey[1]]);
 	}
 	static Abs(A){
 		return new Mat22(abs(A.ex), abs(A.ey));
@@ -50,34 +50,32 @@ class Mat22 {
 		return new Mat22(Mat22.MultMV(A, B.ex), Mat22.MultMV(A, B.ey));
 	}
 	static MultMV(A, v){
-		return V2(A.ex.x * v.x + A.ey.x * v.y, A.ex.y * v.x + A.ey.y * v.y);
+		return [A.ex[0] * v[0] + A.ey[0] * v[1], A.ex[1] * v[0] + A.ey[1] * v[1]];
 	}
 }
 
-// 2D vector
-
-V2=(x=0,y=0)=>({x,y});
-add=(v,w)=>V2(v.x+w.x,v.y+w.y);
-addScaled=(v,w,s)=>V2(v.x+w.x*s,v.y+w.y*s);
-dot=(v,w)=>v.x*w.x+v.y*w.y;
+// 2D vector helpers
+add=(v,w)=>[v[0]+w[0],v[1]+w[1]];
+addScaled=(v,w,s)=>[v[0]+w[0]*s,v[1]+w[1]*s];
+dot=(v,w)=>v[0]*w[0]+v[1]*w[1];
 length=v=>Math.sqrt(x*x+y*y);
-negate=v=>V2(-v.x,-v.y);
-scale=(v,s)=>V2(v.x*s,v.y*s);
-subtract=(v,w)=>V2(v.x-w.x,v.y-w.y);
-abs=v=>V2(Math.abs(v.x),Math.abs(v.y));
-crossVN=(v,n)=>V2(n*v.y,-n*v.x);
-crossNV=(n,v)=>V2(-n*v.y,n*v.x);
-crossVV=(v,w)=>v.x*w.y-v.y*w.x;
+negate=v=>[-v[0],-v[1]];
+scale=(v,s)=>[v[0]*s,v[1]*s];
+subtract=(v,w)=>[v[0]-w[0],v[1]-w[1]];
+abs=v=>[Math.abs(v[0]),Math.abs(v[1])];
+crossVN=(v,n)=>[n*v[1],-n*v[0]];
+crossNV=(n,v)=>[-n*v[1],n*v[0]];
+crossVV=(v,w)=>v[0]*w[1]-v[1]*w[0];
 
 Body = (x, y, r = 0, w, h, m = 1) => {
   var b = {
     width: w,
 		height: h,
-		position: V2(x,y),
+		position: [x,y],
 		rotation: r,
-		linearVelocity: V2(),
+		linearVelocity: [0,0],
 		angularVelocity: 0,
-		force: V2(),
+		force: [0,0],
 		torque: 0,	 
 		friction: 0.2,
     mass: m
@@ -154,38 +152,38 @@ ComputeIncidentEdge = (c, h, pos, Rot, normal) => {
 	var RotT = Rot.transpose();
 	var n = negate(Mat22.MultMV(RotT, normal)); // Vec2 n = (-(RotT * normal))
 	var nAbs = abs(n); // Vec2
-	if(nAbs.x > nAbs.y){
-		if(Math.sign(n.x) > 0.0){
-			c[0].v = V2(h.x, -h.y);
+	if(nAbs[0] > nAbs[1]){
+		if(Math.sign(n[0]) > 0.0){
+			c[0].v = [h[0], -h[1]];
 			c[0].fp.e.inEdge2 = 3;
 			c[0].fp.e.outEdge2 = 4;
-			c[1].v = V2(h.x, h.y);
+			c[1].v = [h[0], h[1]];
 			c[1].fp.e.inEdge2 = 4;
 			c[1].fp.e.outEdge2 = 1;
 		}
 		else {
-			c[0].v = V2(-h.x, h.y);
+			c[0].v = [-h[0], h[1]];
 			c[0].fp.e.inEdge2 = 1;
 			c[0].fp.e.outEdge2 = 2;
-			c[1].v = V2(-h.x, -h.y);
+			c[1].v = [-h[0], -h[1]];
 			c[1].fp.e.inEdge2 = 2;
 			c[1].fp.e.outEdge2 = 3;
 		}
 	}
 	else {
-		if(Math.sign(n.y) > 0.0){
-			c[0].v = V2(h.x, h.y);
+		if(Math.sign(n[1]) > 0.0){
+			c[0].v = [h[0], h[1]];
 			c[0].fp.e.inEdge2 = 4;
 			c[0].fp.e.outEdge2 = 1;
-			c[1].v = V2(-h.x, h.y);
+			c[1].v = [-h[0], h[1]];
 			c[1].fp.e.inEdge2 = 1;
 			c[1].fp.e.outEdge2 = 2;
 		}
 		else {
-			c[0].v = V2(-h.x, -h.y);
+			c[0].v = [-h[0], -h[1]];
 			c[0].fp.e.inEdge2 = 2;
 			c[0].fp.e.outEdge2 = 3;
-			c[1].v = V2(h.x, -h.y);
+			c[1].v = [h[0], -h[1]];
 			c[1].fp.e.inEdge2 = 3;
 			c[1].fp.e.outEdge2 = 4;
 		}
@@ -196,7 +194,7 @@ ComputeIncidentEdge = (c, h, pos, Rot, normal) => {
 
 ClipVertex = () => {
   return {
-    v: V2(),
+    v: [0,0],
 		fp: { // feature pair
       e: {
         inEdge1: 0,
@@ -211,8 +209,8 @@ ClipVertex = () => {
 
 // rect-rect collision detection
 collide = (contacts, bodyA, bodyB) => {
-	var hA = V2(bodyA.width*0.5, bodyA.height*0.5);
-	var hB = V2(bodyB.width*0.5, bodyB.height*0.5);
+	var hA = [bodyA.width*0.5, bodyA.height*0.5];
+	var hB = [bodyB.width*0.5, bodyB.height*0.5];
   //console.log(bodyA);
 	var posA = bodyA.position;
 	var posB = bodyB.position;
@@ -228,40 +226,40 @@ collide = (contacts, bodyA, bodyB) => {
 	var absCT = absC.transpose();
 	// Box A faces
 	var faceA = subtract(subtract(abs(dA),hA), Mat22.MultMV(absC, hB));
-	if(faceA.x > 0.0 || faceA.y > 0.0){
+	if(faceA[0] > 0.0 || faceA[1] > 0.0){
 		return false
 	};
 	// Box B faces
 	var faceB = subtract(subtract(abs(dB), Mat22.MultMV(absCT, hA)), hB);
-	if(faceB.x > 0.0 || faceB.y > 0.0){
+	if(faceB[0] > 0.0 || faceB[1] > 0.0){
 		return false
 	};
 	// if got to here, there is no separating axis = there is overlap
 	// Find best axis
 	var axis;
 	var separation;
-	var normal = V2();
+	var normal = [0,0];
 	// Box A faces
 	axis = 0;
-	separation = faceA.x;
-	normal = (dA.x > 0.0) ? RotA.ex : negate(RotA.ex);
+	separation = faceA[0];
+	normal = (dA[0] > 0.0) ? RotA.ex : negate(RotA.ex);
 	const relativeTol = 0.95;
 	const absoluteTol = 0.01;
-	if(faceA.y > relativeTol * separation + absoluteTol * hA.y){
+	if(faceA[1] > relativeTol * separation + absoluteTol * hA[1]){
 		axis = 1;
-		separation = faceA.y;
-		normal = (dA.y > 0.0) ? RotA.ey : negate(RotA.ey);
+		separation = faceA[1];
+		normal = (dA[1] > 0.0) ? RotA.ey : negate(RotA.ey);
 	}
 	// Box B faces
-	if(faceB.x > relativeTol * separation + absoluteTol * hB.x){
+	if(faceB[0] > relativeTol * separation + absoluteTol * hB[0]){
 		axis = 2;
-		separation = faceB.x;
-		normal = (dB.x > 0.0) ? RotB.ex : negate(RotB.ex);
+		separation = faceB[0];
+		normal = (dB[0] > 0.0) ? RotB.ex : negate(RotB.ex);
 	}
-	if(faceB.y > relativeTol * separation + absoluteTol * hB.y){
+	if(faceB[1] > relativeTol * separation + absoluteTol * hB[1]){
 		axis = 3;
-		separation = faceB.y;
-		normal = (dB.y > 0.0) ? RotB.ey : negate(RotB.ey);
+		separation = faceB[1];
+		normal = (dB[1] > 0.0) ? RotB.ey : negate(RotB.ey);
 	}
 	// Setup clipping plane data based on the separating axis
 	var frontNormal, sideNormal;
@@ -272,11 +270,11 @@ collide = (contacts, bodyA, bodyB) => {
 	switch (axis){
 		case 0:	{
 			frontNormal = normal;
-			front = dot(posA, frontNormal) + hA.x;
+			front = dot(posA, frontNormal) + hA[0];
 			sideNormal = RotA.ey;
 			var side = dot(posA, sideNormal);
-			negSide = -side + hA.y;
-			posSide =	side + hA.y;
+			negSide = -side + hA[1];
+			posSide =	side + hA[1];
 			negEdge = 3;
 			posEdge = 1;
 			ComputeIncidentEdge(incidentEdge, hB, posB, RotB, frontNormal);
@@ -284,11 +282,11 @@ collide = (contacts, bodyA, bodyB) => {
 		}
 		case 1:	{
 			frontNormal = normal;
-			front = dot(posA, frontNormal) + hA.y;
+			front = dot(posA, frontNormal) + hA[1];
 			sideNormal = RotA.ex;
 			var side = dot(posA, sideNormal);
-			negSide = -side + hA.x;
-			posSide =	side + hA.x;
+			negSide = -side + hA[0];
+			posSide =	side + hA[0];
 			negEdge = 2;
 			posEdge = 4;
 			ComputeIncidentEdge(incidentEdge, hB, posB, RotB, frontNormal);
@@ -296,11 +294,11 @@ collide = (contacts, bodyA, bodyB) => {
 		}
 		case 2:	{
 			frontNormal = negate(normal);
-			front = dot(posB, frontNormal) + hB.x;
+			front = dot(posB, frontNormal) + hB[0];
 			sideNormal = RotB.ey;
 			var side = dot(posB, sideNormal);
-			negSide = -side + hB.y;
-			posSide =	side + hB.y;
+			negSide = -side + hB[1];
+			posSide =	side + hB[1];
 			negEdge = 3;
 			posEdge = 1;
 			ComputeIncidentEdge(incidentEdge, hA, posA, RotA, frontNormal);
@@ -308,11 +306,11 @@ collide = (contacts, bodyA, bodyB) => {
 		}		
 		case 3:	{
 			frontNormal = negate(normal);
-			front = dot(posB, frontNormal) + hB.y;
+			front = dot(posB, frontNormal) + hB[1];
 			sideNormal = RotB.ex;
 			var side = dot(posB, sideNormal);
-			negSide = -side + hB.x;
-			posSide =	side + hB.x;
+			negSide = -side + hB[0];
+			posSide =	side + hB[0];
 			negEdge = 2;
 			posEdge = 4;
 			ComputeIncidentEdge(incidentEdge, hA, posA, RotA, frontNormal);
@@ -457,7 +455,7 @@ equals = (p, fp) => {
 }
 
 // Globals
-gravity = V2(0, -9.8);
+gravity = [0, -9.8];
 bodies = [];
 arbiters = new Map();
 iterations = 10;
@@ -498,15 +496,15 @@ run = () => {
       
       var c = [  // hold up to 2 contact points
         {
-          position: V2(),
-          normal: V2(),
+          position: [0,0],
+          normal: [0,0],
           separation: 0,
           feature: null
         },
         
         {
-          position: V2(),
-          normal: V2(),
+          position: [0,0],
+          normal: [0,0],
           separation: 0,
           feature: null
         }
@@ -538,8 +536,8 @@ run = () => {
               contactPoint: c,
               normalImpulse: 0,   // float - accumulated normal impulse
               tangentImpulse: 0,  // float - accumulated tangent impulse
-              rA: V2(), 
-              rB: V2(), 
+              rA: [0,0], 
+              rB: [0,0], 
               normalMass: 0,      // float
               tangentMass: 0,	    // float
               velocityBias: 0     // float
@@ -580,7 +578,7 @@ run = () => {
     if(b.invMass !== 0){	
       //console.log(b.linearVelocity, gravity, dt, addScaled(b.linearVelocity, gravity, dt));
       b.linearVelocity = addScaled(b.linearVelocity, gravity, dt);
-      //if(isNaN(b.linearVelocity.x))console.log(b.linearVelocity);
+      //if(isNaN(b.linearVelocity[0]))console.log(b.linearVelocity);
       //console.log(b.angularVelocity);
       b.angularVelocity += b.torque * b.invI * dt;
     }
@@ -610,7 +608,7 @@ run = () => {
     b.position = addScaled(b.position, b.linearVelocity, dt);
     //console.log(bodies[1].position);
     b.rotation += b.angularVelocity * dt;
-    b.force = V2(0, 0);
+    b.force = [0, 0];
     b.torque = 0;
   }
 }
@@ -685,16 +683,16 @@ Demo4 = () => {
 Demo5 = () => {
 	const b = Body(0, -0.5*20, 0, 100, 20, Number.MAX_VALUE); // ground
 	addBody(b);
-	let x = V2(-6.0, 0.75);
-	let y = V2();
+	let x = [-6.0, 0.75];
+	let y = [0,0];
 	for(let i = 0; i < 12; i++){
 		y = x;
 		for(let j = i; j < 12; j++){
-			const b = Body(y.x, y.y, 0, 1, 1, 10);
+			const b = Body(y[0], y[1], 0, 1, 1, 10);
 			addBody(b);
-			y = add(y, V2(1.125, 0.0));
+			y = add(y, [1.125, 0.0]);
 		}
-		x = add(x, V2(0.5625, 2.0)) ;
+		x = add(x, [0.5625, 2.0]) ;
 	}
 }
 
@@ -731,7 +729,7 @@ render = () => {
 	for(e of bodies){
 		
 		c.save(),
-		c.translate(400 + e.position.x * drawscale, 550 - e.position.y * drawscale);
+		c.translate(400 + e.position[0] * drawscale, 550 - e.position[1] * drawscale);
 		c.rotate(-e.rotation);
 		c.beginPath();
 
@@ -746,9 +744,9 @@ render = () => {
   // draw contacts
   for(i of arbiters){
     for(j of i[1].contacts){
-      if(j.position.x || j.position.y){
+      if(j.position[0] || j.position[1]){
         c.beginPath();
-        c.arc(400 + j.position.x * drawscale, 550 - j.position.y * drawscale, 3, 0, 7);
+        c.arc(400 + j.position[0] * drawscale, 550 - j.position[1] * drawscale, 3, 0, 7);
         c.closePath();
         c.fill();
       }
