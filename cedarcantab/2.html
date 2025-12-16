@@ -1,6 +1,6 @@
 <!doctype html>
 <select id="demolist">
-	<option value="1">A Single Box</option>			 
+	<option value="1">Bouncing boxes & circles</option>			 
 	<option value="3">Varying Friction Coefficients</option>
 	<option value="4">Randomized Stacking</option>
 	<option value="5">Pyramid Stacking</option>
@@ -412,9 +412,24 @@ contactsolver_prestep = (s, inv_dt) => {
   let rtB = crossVV(s.rB, tangent);
   let kTangent = mA + mB + iA * rtA * rtA + iB * rtB * rtB;
   s.tangentMass = kTangent > 0 ? 1 / kTangent : 0;
+  
+  // Relative velocity at contact
+  let vA = add(manifold.bodyA.v, crossNV(manifold.bodyA.A, s.rA));
+  let vB = add(manifold.bodyB.v, crossNV(manifold.bodyB.A, s.rB));
+  let dv = subtract(vB, vA);
+  let vn = dot(dv, c.normal);
+  const e = Math.max(manifold.bodyA.r, manifold.bodyB.r);
+  const restitutionThreshold = 1.0; // m/s (Box2D ≈ 1)
+
+  // Baumgarte bias
   s.velocityBias = -biasFactor * inv_dt * Math.min(0, c.separation + allowedPenetration);
+
+  if (vn < -restitutionThreshold) {
+    s.velocityBias += -e * vn;
+  }
+  
   // Apply normal + friction impulse
-  // This makes stacks stable
+  // Warm starting - this makes stack stable
   let P = addScaled(scale(c.normal, s.normalImpulse), tangent, s.tangentImpulse); // vector2
   manifold.bodyA.v = addScaled(manifold.bodyA.v, P, -mA);
   manifold.bodyA.A -= iA * crossVV(s.rA, P);
@@ -428,6 +443,7 @@ contactsolver_solve = (s) => {
   const mB = manifold.bodyB.M;
   const iA = manifold.bodyA.I;
   const iB = manifold.bodyB.I;
+  
   var c = s.contactPoint;
   // Solve tangent constraints first because non-penetration is more important
   // than friction.
@@ -641,10 +657,18 @@ create = () => {
 	});
 }
 
-// a single box
+// bouncing shapes
 Demo1 = () => {
-	shape(RECTANGLE, [0,-10], 0, 100, 20); // ground
-	shape(RECTANGLE, [0,4], 200, 1, 1);        // box
+	shape(RECTANGLE, [0,-10], 0, 100, 20, {r: 0}); // ground
+	shape(RECTANGLE, [-8,4], 200, 1, 1, {r: 0});
+	shape(RECTANGLE, [-6,4], 200, 1, 1, {r: .2});
+	shape(RECTANGLE, [-4,4], 200, 1, 1, {r: .4});
+	shape(RECTANGLE, [-2,4], 200, 1, 1, {r: .5});
+  
+	shape(CIRCLE, [2,4], 200, 1, 1, {r: 0});
+	shape(CIRCLE, [4,4], 200, 1, 1, {r: .2});
+	shape(CIRCLE, [6,4], 200, 1, 1, {r: .4});
+	shape(CIRCLE, [8,4], 200, 1, 1, {r: .5});
 }
 
 // Varying friction coefficients 
@@ -725,8 +749,12 @@ render = () => {
 		c.beginPath();
 
 		// rectangle
-		c.rect(-(e.w/2) * drawscale, -(e.h/2) * drawscale, e.w * drawscale, e.h * drawscale);
-		
+    if(e.t == 0){
+      c.rect(-(e.w/2) * drawscale, -(e.h/2) * drawscale, e.w * drawscale, e.h * drawscale);
+		}
+    else {
+      c.arc(0, 0, e.w * drawscale / 2, 0, 7);
+    }
 		c.closePath();
     c.fillStyle = "#ddd";
     c.fill();
