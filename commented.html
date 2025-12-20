@@ -17,14 +17,15 @@
 
 // Constants
 G = [0,.1];     // Gravity
-O = .4;         // Shapes overlap correction
+O = .01;         // Shapes overlap correction
 E = .01;        // Fixed joints elasticity
 R = 20;         // Resolutions per frame
 
 // Arrays
-H = [];         // shapes (circles, rectangles)
-J = [];         // joints (spring, repulsive, fixed, hinge)
-M = [];         // manifolds
+H = [];    // shapes (circles, rectangles)
+J = [];    // joints (spring, repulsive, hinge, fixed)
+M = [];    // manifolds (collision info)
+W = {};    // warm-starting contact cache (key: idA + "-" idB, value: A-B manifold)
 
 // Shapes types
 RECTANGLE = 0;
@@ -46,7 +47,7 @@ n=v=>S(v,1/l(v)),               // normalize
 l=v=>d(v,v)**.5,                // length
 d=(x,y)=>x[0]*y[0]+x[1]*y[1],   // dot
 p=(x,y)=>[x[0]+y[0],x[1]+y[1]], // add
-s=(x,y)=>[x[0]-y[0],x[1]-y[1]], // sub
+s=(x,y)=>p(x,S(y,-1)),          // sub
 S=(x,y)=>[x[0]*y,x[1]*y],       // scale
 C=(x,y)=>x[0]*y[1]-x[1]*y[0],   // cross
 r = (x, y, c) => (              // rotate (point, origin, angle)
@@ -61,10 +62,6 @@ x = (shape, penetration) => (   // scalar cross (shape x penetration)
     shape.A * penetration[0]
   ]
 ),
-CrossVec2Number = (v, n) => {
-  return [n * v.y, -n * v.x];
-}
-copy = (v) => [v.x, v.y];
 
 // Apply normal impulse (linear + angular)
 // params: shapeA, shapeB, force, normal, aCrossN, bCrossN, doLinear
@@ -111,9 +108,6 @@ shape = (t, c, m = 1, w = 9, h = 9, o,
     R: 1,               // rotations enabled
     p: [],              // anchorPoints
     N: [],              // noCollisions
-    O,                  // overlap correction
-    sleep: 0,           // sleep timer
-    asleep: false,      // flag
     P: [0, 0],          // propulsion
     n: [                // normals (rectangles only)
       [0, -1],
@@ -234,7 +228,6 @@ run = (
       body2 = H[i];
       
       // for each shape of the outer loop:
-      
       // reset acceleration and apply gravity + optional propulsion
       body1.F = S(p(body1.g, body1.P), body1.m);
       
@@ -255,7 +248,10 @@ run = (
               n: n(t2),                         // normal
               c: p(body1.c, S(n(t2), body1.w)), // contactPoint
               A: body1,                         // shapeA
-              B: body2                          // shapeB
+              B: body2,                         // shapeB
+              jn: 0, // accumulated normal impulse
+              jt: 0, // accumulated tangent impulse
+              k: ""  // contact key
             };
           }
         }
@@ -283,8 +279,8 @@ run = (
                 if((t6 = d(s(body2.V[t7], body1.V[t3]), S(body1.n[t3], -1))) > t4){
                   t4 = t6;
                   t5 = {
-                    v: body2.V[t7],   // vertex
-                    d: t6             // depth
+                    v: body2.V[t7],  // vertex
+                    d: t6        // depth
                   }
                 }
               }
@@ -295,11 +291,14 @@ run = (
               // save the manifold t1 if this axis has the smallest penetration depth
               if(t1 && t5.d < t2){
                 t1 = {
-                  d: t2 = t5.d,     // depth
-                  n: body1.n[t3],   // normal
-                  c: t5.v,          // contactPoint
-                  A: body1,         // shapeA
-                  B: body2          // shapeB
+                  d: t2 = t5.d, // depth
+                  n: body1.n[t3],  // normal
+                  c: t5.v,     // contactPoint
+                  A: body1,       // shapeA
+                  B: body2,       // shapeB
+                  jn: 0, // accumulated normal impulse
+                  jt: 0, // accumulated tangent impulse
+                  k: ""  // contact key
                 }
               }
             }
@@ -353,7 +352,10 @@ run = (
               n: S(t2, -1),                     // normal
               c: p(body1.c, S(t2, -body1.w)),   // contactPoint
               A: body1,                         // shapeA
-              B: body2                          // shapeB
+              B: body2,                         // shapeB
+              jn: 0, // accumulated normal impulse
+              jt: 0, // accumulated tangent impulse
+              k: ""  // contact key
             }
             : 0
           }
@@ -368,7 +370,10 @@ run = (
                   n: n(t5),             // normal
                   c: body2.V[t3],       // contactPoint
                   A: body1,             // shapeA
-                  B: body2              // shapeB
+                  B: body2,             // shapeB
+                  jn: 0, // accumulated normal impulse
+                  jt: 0, // accumulated tangent impulse
+                  k: ""  // contact key
                 };
               }
             }
@@ -415,7 +420,7 @@ run = (
       t3 = C(t7, j.n);
 
       // compute Baumgarte bias from penetration to reduce positional drift
-      t4 = j.d * Math.max(body1.O, body2.O);
+      t4 = j.d * O;
 
       // normal impulse scalar
       t5 = (-(1 + Math.min(body1.r, body2.r)) * d(t1, j.n) + t4) / (body1.M + body2.M + t2 * t2 * body1.I + t3 * t3 * body2.I);
@@ -511,8 +516,6 @@ run = (
       }
     }
   }
-  
-  
 
   // integrate shapes
   for(j of H){
@@ -641,7 +644,7 @@ shape(RECTANGLE, [400, 20], 0, 780, 20);
 shape(RECTANGLE, [400, 300], 0, 780, 20);
 shape(RECTANGLE, [400, 580], 0, 780, 20);
 shape(RECTANGLE, [400, 880], 0, 780, 20);
-shape(RECTANGLE, [400, 1180], 0, 780, 20, {f:1,r:0,O:1});
+shape(RECTANGLE, [400, 1180], 0, 780, 20, {f:1,r:0});
 shape(RECTANGLE, [20, 600], 0, 20, 1180);
 shape(RECTANGLE, [280, 600], 0, 20, 1180);
 shape(RECTANGLE, [540, 450], 0, 20, 880);
@@ -697,6 +700,7 @@ c1 = shape(CIRCLE, [665, 465], 100, 30, 30);
 a2 = anchor(c1, [-20,10]);
 joint(HINGE, r1, a1, c1, a2);
 
+
 // Loop
 s1b = shape(RECTANGLE, [410+510-780, 70+300+300], 0, 200, 30);
 s2 = shape(CIRCLE, [360+510-780, 90+300+300], 10, 30);
@@ -728,6 +732,7 @@ j6 = joint(FIXED, s6, a6b, s7, a7a);
 j7 = joint(HINGE, s7, a7b, s5, a5b);
 
 // Kinematic
+
 for(i=35;i--;){
   shape(i%2, [345 - i/2 + (i % 8) * 25, 655+ (i / 8) * 40], 1, i%2?10:20,20);
 }
@@ -754,14 +759,12 @@ for(i=5;i--;){
 //shape(RECTANGLE, [650, 1120], 0, 200, 20, {a: -.3});
 //shape(CIRCLE, [690, 950], 100, 30);
 
-
 // Main loop
 time = 0;
 interval = setInterval(() => {
   time++;
   run();
-  //transform(r9, [Math.sin(time/70) * .8, 0], -0.01);
-  //transform(r10, [Math.sin(time/70) * .8, 0], 0);
+  transform(r9, [Math.sin(time/70) * .8, 0], -0.01);
   draw();
 }, 16);
 </script>

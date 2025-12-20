@@ -57,7 +57,7 @@ class Mat22 {
 add=(v,w)=>[v[0]+w[0],v[1]+w[1]];
 addScaled=(v,w,s)=>[v[0]+w[0]*s,v[1]+w[1]*s];
 dot=(v,w)=>v[0]*w[0]+v[1]*w[1];
-length=v=>Math.sqrt(x*x+y*y);
+length=v=>dot(v,v)**.5;
 negate=v=>[-v[0],-v[1]];
 scale=(v,s)=>[v[0]*s,v[1]*s];
 subtract=(v,w)=>[v[0]-w[0],v[1]-w[1]];
@@ -65,16 +65,46 @@ abs=v=>[Math.abs(v[0]),Math.abs(v[1])];
 crossVN=(v,n)=>[n*v[1],-n*v[0]];
 crossNV=(n,v)=>[-n*v[1],n*v[0]];
 crossVV=(v,w)=>v[0]*w[1]-v[1]*w[0];
+normalize=v=>scale(v,1/length(v));               // normalize
+r = (x, y, c) => (              // rotate (point, origin, angle)
+  [
+    (x[0] - y[0]) * Math.cos(c) - (x[1] - y[1]) * Math.sin(c) + y[0],
+    (x[0] - y[0]) * Math.sin(c) + (x[1] - y[1]) * Math.cos(c) + y[1]
+  ]
+);
+x = (shape, penetration) => (   // scalar cross (shape x penetration)
+  [
+    -shape.A * penetration[1],
+    shape.A * penetration[0]
+  ]
+);
+
+// Apply normal impulse (linear + angular)
+// params: shapeA, shapeB, force, normal, aCrossN, bCrossN, doLinear
+I = (a, b, force, n, an, bn, doLinear = 1, t) => {
+  
+  // linear
+  if(doLinear){
+    t = scale(n, force);
+    a.v = subtract(a.v, scale(t, a.M));
+    b.v = add(b.v, scale(t, b.M));
+  }
+  
+  // angular
+  if(a.R) a.A -= an * force * a.I;
+  if(b.R) b.A += bn * force * b.I;
+};
+
 
 // Globals
 gravity = [0, -9.8];
-arbiters = new Map();
+manifolds = new Map(); // manifolds (rect-rect)
 iterations = 10;
 idCounter = 0;
 
 H = [];         // shapes (circles, rectangles)
 J = [];         // joints (spring, repulsive, fixed, hinge)
-M = [];         // manifolds (arbiters)
+M = [];         // manifolds (except rect-rect)
 
 // Shapes types constants
 RECTANGLE = 0;
@@ -103,21 +133,36 @@ shape = (t, c, m=1, w=9, h=9, o,
     m,
     w,
     h,
-    c,
-    f: .5,              // friction
-    r: .5,              // restitution
+    c: [0, 0],
+    f: 1,               // friction
+    r: 0,               // restitution
     a: 0,               // angle
     v: [0, 0],          // velocity
     A: 0,               // angular velocity
-    //g: G,               // gravity
+    //g: G,             // gravity
     F: [0, 0],          // forceAccumulator
     T: 0,               // torqueAccumulator
     R: 1,               // rotations enabled
     p: [],              // anchorPoints
     N: [],              // noCollisions
     P: [0, 0],          // propulsion
+    n: [                // normals (rectangles only)
+      [0, -1],
+      [1, 0],
+      [0, 1],
+      [-1, 0]
+    ],
+
     M: m ? 1 / m : 0,   // invMass
+    
     I: i ? 1 / i : 0,   // invInertia
+    
+    V: t ? [] : [       // vertices (rectangles only)
+      [-w / 2, -h / 2],
+      [w / 2, -h / 2],
+      [w / 2, h / 2],
+      [-w / 2, h / 2]
+    ],
     e: H.length,        // index in shapes list
     id: null,           // id
     ...o,               // custom options
@@ -125,11 +170,36 @@ shape = (t, c, m=1, w=9, h=9, o,
 ) => (
   idCounter++,
   s.id = idCounter,
+  transform(s, c, s.a), // rotate / translate the shape
   H.push(s),            // add shape in shapes list
   s                     // return shape
 );
 
-ArbiterKey = (b1, b2) => {
+// Transform a shape
+// params: shape, offset, angle
+transform = (shape, offset, angle, t = 4) => {
+  
+  // add offset to the shape's center
+  shape.c = add(shape.c, offset);
+  
+  // add offset / angle to the shape's vertices and normals (rectangle only)
+  if(!shape.t){
+    for(; t--;){
+      shape.n[t] = r(shape.n[t], [0,0], angle);
+      shape.V[t] = r(add(shape.V[t], offset), shape.c, angle);
+    }
+  }
+  
+  // move and rotate the shape's anchor points
+  for(t in shape.p){
+    shape.p[t] = r(add(shape.p[t], offset), shape.c, angle);
+  }
+  
+  // rotate propulsion vector
+  shape.P = r(shape.P, [0,0], angle);
+};
+
+ManifoldKey = (b1, b2) => {
 	//Cantor's enumeration of pairs
 	var x, y;
 	if(b1.id < b2.id){
@@ -506,148 +576,372 @@ equals = (p, fp) => {
 // Simulate 1 frame
 run = () => {
 
+  // Reset manifolds
+  M = [];
+
+  var i, j, manifold, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, bodyA, bodyB, bi, bj;
+
   var dt = .01;
   var inv_dt = 1 / dt;
   
-  // Broad phase: determine overlapping rectangles and update contact points
-  for(let i = 0; i < H.length - 1; i++){
-    var bi = H[i];
-    for(let j = i+1; j < H.length; j++){
-      var bj = H[j];
+  // Collision detection
+  for(i = 0; i < H.length - 1; i++){
+    bi = H[i];
+    
+    for(j = i+1; j < H.length; j++){
+      bj = H[j];
       if(bi.M == 0 && bj.M == 0){
         continue;
       }
-      let bodyA, bodyB;	
       if(bi.id > bj.id){
         bodyA = bi;
-        bodyB = bodyB;
+        bodyB = bj;
       }
       else {
         bodyB = bi;
         bodyA = bj;
       }
-      var key = ArbiterKey(bodyA, bodyB);
+
+      // Rect-rect (specific code for stable stacking)
+      if(bodyA.t == 0 && bodyB.t == 0){
       
-      var c = [  // hold up to 2 contact points
-        {
-          c: [0,0], // position
-          normal: [0,0],
-          separation: 0,
-          feature: null
-        },
+        var key = ManifoldKey(bodyA, bodyB);
         
-        {
-          c: [0,0],
-          normal: [0,0],
-          separation: 0,
-          feature: null
-        }
-      ];
-
-      var numContacts = collide(c, bodyA, bodyB);
-      contacts = {contacts: c, numContacts: numContacts};
-
-      // Create manifold
-      if(contacts.numContacts > 0){
-        var newArb = {
-          bodyA: bodyA,
-          bodyB: bodyB,
-          contacts: contacts.contacts, // hold up to 2 contact points
-          numContacts: contacts.numContacts,
-          constraints: [],
-          f: Math.sqrt(bodyA.f * bodyB.f) // friction
-        };
-        
-        for(let i = 0; i < newArb.numContacts; i++){
-          const c = newArb.contacts[i];
-          newArb.constraints.push(
-            
-            // new contact solver
-            {
-              manifold: newArb,
-              contactPoint: c,
-              normalImpulse: 0,   // float - accumulated normal impulse
-              tangentImpulse: 0,  // float - accumulated tangent impulse
-              rA: [0,0], 
-              rB: [0,0], 
-              normalMass: 0,      // float
-              tangentMass: 0,	    // float
-              velocityBias: 0     // float
-            }
-          );
-        }
-        newArb.K = new Mat22();
-        
-        var oldArb = arbiters.get(key);
-        if(oldArb){
+        var c = [  // hold up to 2 contact points
+          {
+            c: [0,0], // position
+            normal: [0,0],
+            separation: 0,
+            feature: null
+          },
           
-          // update existing manifold
-          for(let i = 0; i < newArb.numContacts; i++){
-            let cNew = newArb.contacts[i];
-            let j = 0;
-            for(; j < oldArb.numContacts; j++){
-              const cOld = newArb.contacts[j];
-              if(equals(cNew.feature, cOld.feature)){					
-                break;
+          {
+            c: [0,0],
+            normal: [0,0],
+            separation: 0,
+            feature: null
+          }
+        ];
+
+        var numContacts = collide(c, bodyA, bodyB);
+        contacts = {contacts: c, numContacts: numContacts};
+
+        // Create manifold
+        if(contacts.numContacts > 0){
+          var newMan = {
+            bodyA: bodyA,
+            bodyB: bodyB,
+            contacts: contacts.contacts, // hold up to 2 contact points
+            numContacts: contacts.numContacts,
+            constraints: [],
+            f: Math.sqrt(bodyA.f * bodyB.f) // friction
+          };
+          
+          for(let i = 0; i < newMan.numContacts; i++){
+            const c = newMan.contacts[i];
+            newMan.constraints.push(
+              
+              // new contact solver
+              {
+                manifold: newMan,
+                contactPoint: c,
+                normalImpulse: 0,   // float - accumulated normal impulse
+                tangentImpulse: 0,  // float - accumulated tangent impulse
+                rA: [0,0], 
+                rB: [0,0], 
+                normalMass: 0,      // float
+                tangentMass: 0,	    // float
+                velocityBias: 0     // float
+              }
+            );
+          }
+          newMan.K = new Mat22();
+          
+          var oldMan = manifolds.get(key);
+          if(oldMan){
+            
+            // update existing manifold
+            for(let i = 0; i < newMan.numContacts; i++){
+              let cNew = newMan.contacts[i];
+              let j;
+              for(j = 0; j < oldMan.numContacts; j++){
+                const cOld = newMan.contacts[j];
+                if(equals(cNew.feature, cOld.feature)){					
+                  break;
+                }
+              }
+              if(j < oldMan.numContacts){
+                newMan.constraints[i].normalImpulse = oldMan.constraints[j].normalImpulse;
+                newMan.constraints[i].tangentImpulse = oldMan.constraints[j].tangentImpulse;	
               }
             }
-            if(j < oldArb.numContacts){
-              newArb.constraints[i].normalImpulse = oldArb.constraints[j].normalImpulse;
-              newArb.constraints[i].tangentImpulse = oldArb.constraints[j].tangentImpulse;	
+          }
+          manifolds.set(key, newMan);
+        }
+        else {
+          manifolds.delete(key)
+        }
+      }
+      
+      
+      // Circle-circle
+      else if(bodyA.t == 1 && bodyB.t == 1){
+        t2 = subtract(bodyB.c, bodyA.c);
+        t3 = length(t2);
+        if(t3 < bodyA.w + bodyB.w){
+          manifold = {
+            d: bodyA.w + bodyB.w - t3,        // depth
+            n: normalize(t2),                         // normal
+            c: add(bodyA.c, scale(normalize(t2), bodyA.w)), // contactPoint
+            A: bodyA,
+            B: bodyB
+          };
+          M.push(manifold);
+        }
+      }
+      
+      // circle-rectangle
+      else {
+        
+        // if rectangle first, invert the bodies
+        if(!bodyA.t && bodyB.t){
+          [bodyB, bodyA] = [bodyA, bodyB];
+        }
+
+        // Try to detect a collision between the circle and the rectangle's edges:
+        t7 = 0;
+        
+        // for each edge
+        for(t3 = 4; t3--;){
+        
+          // create a vector t4 from first vertex of edge to the center of the circle
+          t4 = subtract(bodyA.c, bodyB.V[t3]);
+          
+          // create a vector t5 from first vertex to the second 
+          t5 = subtract(bodyB.V[(t3+1)%4], bodyB.V[t3]);
+          
+          // project t4 on t5
+          t6 = dot(t4, normalize(t5));
+          
+          // project t4 on the edge's normal
+          // if the circle's center is within the edge's bounds and inside the rectangle, save the normal in t2 and the vertex in t7
+          if(bodyB.n[t3] && dot(t4, bodyB.n[t3]) >= 0 && t6 > 0 && t6 < length(t5)){
+            t7 = bodyB.V[t3];
+            t2 = bodyB.n[t3];
+          }
+        }
+        
+        // no collision if t7 is 0
+        if(!t7) t1 = 0;
+        
+        // collision
+        else {
+        
+          // compute distance between edge and circle's center
+          t8 = dot(t2, subtract(bodyA.c, t7));
+          
+          // return 0 (if no collision) or a manifold
+          t1 = t8 - bodyA.w < 0
+          ? {
+            d: -t8 + bodyA.w,                 // depth
+            n: scale(t2, -1),                     // normal
+            c: add(bodyA.c, scale(t2, -bodyA.w)),   // contactPoint
+            A: bodyA,                         // shapeA
+            B: bodyB                          // shapeB
+          }
+          : 0
+        }
+        
+        // if no edge collision is found, test against the rectangle's corners
+        // return the resulting contact information or 0 if none is found
+        if(!t1){
+          for(t3 = 4; t3--;){
+            if(t5 = subtract(bodyB.V[t3], bodyA.c), length(t5) < bodyA.w){
+              t1 = {
+                d: bodyA.w - length(t5),   // depth
+                n: normalize(t5),             // normal
+                c: bodyB.V[t3],       // contactPoint
+                A: bodyA,             // shapeA
+                B: bodyB              // shapeB
+              };
             }
           }
         }
-        arbiters.set(key, newArb);
-      }
-      else {
-        arbiters.delete(key)
+        
+        // add manifold to list
+        if(t1) { M.push(t1); }
       }
     }
   }
   
   // Integrate forces
   H.forEach(b => {
-    if(b.M !== 0){	
+    if(b.M !== 0 && b.t == 0){	
       b.v = addScaled(b.v, gravity, dt);
       b.A += b.T * b.I * dt;
     }
   });
   
-  // perform pre-steps
-  for(const arb of arbiters.values()){
-    for(let i = 0; i < arb.numContacts; i++){	
-      contactsolver_prestep(arb.constraints[i], inv_dt);
+  for(i = 0; i < H.length; i++){
+    bi = H[i];
+    if(bi.M !== 0 && bi.t == 1) {
+      bi.F = scale(gravity, dt);
+      bi.A += bi.T * bi.I * dt;
     }
   }
   
-  // perform solving iterations
-  for(let i = 0; i < iterations; i++){
-    for(const arb of arbiters.values()){
-      for(let j = 0; j < arb.numContacts; j++){		
-        contactsolver_solve(arb.constraints[j]);
+  // perform pre-steps (rect-rect only)
+  for(const man of manifolds.values()){
+    if(man.bodyA.t == 0 && man.bodyB.t == 0){
+      for(let i = 0; i < man.numContacts; i++){	
+        contactsolver_prestep(man.constraints[i], inv_dt);
       }
     }
   }
   
+  var man;
+  
+  // perform solving iterations
+  for(i = 0; i < iterations; i++){
+  
+    // Rect-rect
+    for(man of manifolds.values()){
+      for(j = 0; j < man.numContacts; j++){		
+        contactsolver_solve(man.constraints[j]);
+      }
+    }
+    
+    // Others
+    for(j of M){
+    
+      bodyA = j.A;
+      bodyB = j.B;
+
+      // Movement impulses:
+
+      // relative velocity at contact point
+      t1 = subtract(
+        add(
+          bodyB.v,
+          x(
+            bodyB, 
+            t7 = subtract(j.c, bodyB.c)
+          )
+        ),
+        add(
+          bodyA.v, 
+          x(
+            bodyA,
+            t8 = subtract(j.c, bodyA.c)
+          )
+        )
+      );
+      
+
+      // effective mass for normal direction
+      t2 = crossVV(t8, j.n);
+      t3 = crossVV(t7, j.n);
+
+      // compute Baumgarte bias from penetration to reduce positional drift
+      t4 = j.d; // * Math.max(bodyA.O, bodyB.O);
+
+      // normal impulse scalar
+      t5 = (-(1 + Math.min(bodyA.r, bodyB.r)) * dot(t1, j.n) + t4) / (bodyA.M + bodyB.M + t2 * t2 * bodyA.I + t3 * t3 * bodyB.I);
+      
+      // apply impulses
+      I(bodyA, bodyB, t5, j.n, t2, t3);
+
+      // Friction impulses:
+      
+      // compute tangent
+      t6 = scale(subtract(t1, scale(j.n, dot(t1, j.n))), -1);
+      
+      // if zero tangent, skip
+      if(length(t6) > 0) {
+      
+   
+        // effective mass along tangent
+        t9 = crossVV(t8, t6 = normalize(t6));
+        t10 = crossVV(t7, t6);
+
+        // friction coefficient
+        t11 = Math.min(bodyA.f, bodyB.f);
+        console.log(t11);
+        
+        // desired friction impulse
+        t12 = (-dot(t1, t6)) / (bodyA.M + bodyB.M + t9*t9*bodyA.I + t10*t10*bodyB.I);
+        
+        // clamp friction by normal impulse magnitude
+        t12 *= t11;
+        
+        // apply impulses
+        I(bodyA, bodyB, t12, t6, t9, t10);
+      }
+    }
+  }
+  
+  for(i in H){
+    //if(H[i].t == 1 && i == 6 && length(H[i].v) != 0) console.log(i, H[i].v);
+  }
+  
   // integrate velocities
   for(let i = 0; i < H.length; i++){
-    let b = H[i];
-    b.c = addScaled(b.c, b.v, dt);
-    b.a += b.A * dt;
-    b.F = [0, 0];
-    b.T = 0;
+    if(H[i].t == 0){
+      let b = H[i];
+      b.c = addScaled(b.c, b.v, dt);
+      b.a += b.A * dt;
+      b.F = [0, 0];
+      b.T = 0;
+    }
+    else {
+      j = H[i];
+      // skip fixed objects
+      if(j.M){
+        
+        // add force accumulator to velocity (proportionally to inverse mass)
+        j.v = add(j.v, scale(j.F, dt));
+        //console.log(j.F, j.v);
+        
+        // reset force accumulator
+        j.F = [0,0];
+        
+        // add torque to angular velocity (proportionally to inverse inertia)
+        j.A += j.T * j.I * dt;
+        
+        // update angle
+        j.a += j.A * dt;
+        
+        // rotate / translate shape
+        transform(j, j.v, j.A);
+
+        // damp velocity
+        j.v = scale(j.v, .99);
+        
+        // set tiny velocity to zero (to avoid jittering)
+        if(Math.abs(length(j.v)) < .0001) j.v = [0,0];
+        
+        // damp angular velocity
+        j.A *= .99;
+        
+        // set tiny rotations to zero
+        if(Math.abs(j.A) < .0001) j.A = 0;
+        
+        // reset torque accumulator
+        j.T = 0;
+      }
+    }
   }
 }
 
 // Reset the scene
 clear = () => {
   H = [];
-  arbiters.clear();
+  manifolds.clear();
   idCounter = 0;
 }
 
 create = () => {
-	let demoIndex = 1;
+	let demoIndex = 3;
 	InitDemo(demoIndex);
 	let demoList = document.getElementById('demolist');
 	demoList.addEventListener('change', (e) => {
@@ -665,23 +959,23 @@ Demo1 = () => {
 	shape(RECTANGLE, [-4,4], 200, 1, 1, {r: .4});
 	shape(RECTANGLE, [-2,4], 200, 1, 1, {r: .5});
   
-	shape(CIRCLE, [2,4], 200, 1, 1, {r: 0});
-	shape(CIRCLE, [4,4], 200, 1, 1, {r: .2});
-	shape(CIRCLE, [6,4], 200, 1, 1, {r: .4});
-	shape(CIRCLE, [8,4], 200, 1, 1, {r: .5});
+	shape(CIRCLE, [2,4], 200, .5, 1, {r: 0});
+	shape(CIRCLE, [4,4], 200, .5, 1, {r: .2});
+	shape(CIRCLE, [6,4], 200, .5, 1, {r: .4});
+	shape(CIRCLE, [8,4], 200, .5, 1, {r: .5});
 }
 
 // Varying friction coefficients 
 Demo3 = () => {
 	shape(RECTANGLE, [0,-10], 0, 100, 20); // ground
 	shape(RECTANGLE, [-2, 11], 0, 13, .25, {a: -.25});
-	shape(RECTANGLE, [5.25, 9.5], 0, .25, 1);
+	shape(RECTANGLE, [5.5, 9.5], 0, .25, 1);
 	shape(RECTANGLE, [2.0, 7.0], 0, 13, .25, {a: .25});
-	shape(RECTANGLE, [-5.25, 5.5], 0, .25, 1);
+	shape(RECTANGLE, [-5.5, 5.5], 0, .25, 1);
 	shape(RECTANGLE, [-2.0, 3.0], 0, 13, .25, {a: -.25});
-	let friction = [0.75, 0.5, 0.35, 0.1, 0.0];
-  for(let i = 0; i < 5; i++){
-		shape(RECTANGLE, [-7.5 + 2 * i, 14], 25, .5, .5, {f: friction[i]});
+	let friction = [1, 0.75, 0.5, 0.35, 0.1, 0.0];
+  for(let i = 0; i < 6; i++){
+		shape(1, [-7.5 + 2 * i, 14], 25, i == 0 ? .25 : .5, .5, {f: friction[i]});
 	}
 }
 
@@ -707,7 +1001,7 @@ Demo5 = () => {
 			shape(RECTANGLE, y, 10, 1, 1);
 			y = add(y, [1.125, 0.0]);
 		}
-		x = add(x, [0.5625, 2.0]) ;
+		x = add(x, [0.5625, 2.0]);
 	}
 }
 
@@ -742,7 +1036,6 @@ render = () => {
 	
 	// draw shapes
 	for(e of H){
-		
 		c.save(),
 		c.translate(400 + e.c[0] * drawscale, 550 - e.c[1] * drawscale);
 		c.rotate(-e.a);
@@ -753,7 +1046,8 @@ render = () => {
       c.rect(-(e.w/2) * drawscale, -(e.h/2) * drawscale, e.w * drawscale, e.h * drawscale);
 		}
     else {
-      c.arc(0, 0, e.w * drawscale / 2, 0, 7);
+      c.arc(0, 0, e.w * drawscale, 0, 7);
+      c.lineTo(0,0);
     }
 		c.closePath();
     c.fillStyle = "#ddd";
@@ -762,8 +1056,9 @@ render = () => {
 		c.restore();
 	}
   
+  
   // draw contacts
-  for(i of arbiters){
+  for(i of manifolds){
     for(j of i[1].contacts){
       if(j.c[0] || j.c[1]){
         c.beginPath();
